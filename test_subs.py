@@ -268,7 +268,9 @@ class TestUpdate(unittest.TestCase):
 
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
-        self.subs = subs.Subscriptions(0, self.conn)
+        now = datetime.datetime.now()
+        self.now = now
+        self.subs = subs.Subscriptions(0, self.conn, now=lambda: now)
         self.subs.init()
         c = self.conn.cursor()
         c.executemany(
@@ -284,14 +286,14 @@ class TestUpdate(unittest.TestCase):
                 (2, 'yt_id7', 'title5')))
 
     def test_cache(self):
-        now = int(datetime.datetime.now().timestamp())
+        last_update = int(self.now.timestamp()) - 1
         c = self.conn.cursor()
-        c.execute('update subs set last_update = ?', (now,))
-        self.subs.update((), 0, subs.Client(24 * 60, self.FakeYoutubeDL()))
+        c.execute('update subs set last_update = ?', (last_update,))
+        self.subs.update((), 1, subs.Client(24 * 60, self.FakeYoutubeDL()))
         ret = min(
             y for x in c.execute('select distinct last_update from subs')
             for y in x)
-        self.assertEqual(ret, now)
+        self.assertEqual(ret, last_update)
 
     def test_no_updates(self):
         ydl = self.FakeYoutubeDL({
@@ -307,7 +309,6 @@ class TestUpdate(unittest.TestCase):
         self.assertNotEqual(ret, 0)
 
     def test_update(self):
-        now = int(datetime.datetime.now().timestamp()) - 1
         ydl = self.FakeYoutubeDL({
             'https://www.youtube.com/channel/yt_id0': {'url': 'yt_id0_url'},
             'https://www.youtube.com/channel/yt_id1': {'url': 'yt_id1_url'},
@@ -318,11 +319,11 @@ class TestUpdate(unittest.TestCase):
                     {'id': 'yt_id10', 'title': 'title8'})}})
         self.subs.update((), 0, subs.Client(0, ydl))
         c = self.conn.cursor()
-        ret = min(
+        ret = {
             y for x in c.execute(
                 'select distinct last_update from subs')
-            for y in x)
-        self.assertGreater(ret, now)
+            for y in x}
+        self.assertEqual(ret, {int(self.now.timestamp())})
         c.execute('select sub, yt_id, title from videos where id > 6')
         self.assertEqual(set(c), {
             (1, 'yt_id8', 'title6'),

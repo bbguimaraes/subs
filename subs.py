@@ -127,6 +127,58 @@ class Client(object):
         return int(ts)
 
 
+class Query(object):
+    @classmethod
+    def make_args(cls, n): return ', '.join(('?',) * n)
+
+    def __init__(self, table):
+        self.table = table
+        self.fields = []
+        self.joins = []
+        self.wheres = []
+        self.group_bys = []
+        self.order_bys = []
+
+    def add_fields(self, *name):
+        self.fields.extend(name)
+
+    def add_joins(self, *joins):
+        self.joins.extend(joins)
+
+    def add_filter(self, *exprs):
+        self.wheres.extend(exprs)
+
+    def add_group(self, *exprs):
+        self.group_bys.extend(exprs)
+
+    def add_order(self, *exprs):
+        self.order_bys.extend(exprs)
+
+    def _query(self, l):
+        if self.wheres:
+            l.append('where')
+            l.append(' and '.join(self.wheres))
+        if self.group_bys:
+            l.append('group by')
+            l.append(', '.join(self.group_bys))
+        if self.order_bys:
+            l.append('order by')
+            l.append(', '.join(self.order_bys))
+        return ' '.join(l)
+
+    def query(self, distinct=False):
+        ret = ['select']
+        if distinct:
+            ret.append('distinct')
+        ret.extend((', '.join(self.fields), 'from', self.table))
+        if self.joins:
+            ret.append(' '.join(self.joins))
+        return self._query(ret)
+
+    def update(self, q):
+        return self._query(['update', self.table, 'set', q])
+
+
 class Subscriptions(object):
     def __init__(self, verbose, conn, now=None):
         self._verbose = verbose
@@ -134,9 +186,6 @@ class Subscriptions(object):
         self._now = now or datetime.datetime.now
 
     def _log(self, *msg): self._verbose and print(*msg)
-
-    @classmethod
-    def _make_args(cls, n): return ', '.join(('?',) * n)
 
     def raw(self, l):
         c = self._conn.cursor()
@@ -167,55 +216,47 @@ class Subscriptions(object):
 
     def list(self, ids, show_id, show_ids, unwatched):
         assert(bool(show_id) + bool(show_ids) <= 1)
-        q = ['select']
+        q = Query(table='subs')
+        q.add_order('subs.id')
         if show_id:
-            q.append('subs.yt_id')
+            q.add_fields('subs.yt_id')
         elif show_ids:
-            q.append('subs.yt_id, subs.name')
+            q.add_fields('subs.yt_id', 'subs.name')
         else:
-            q.append('subs.name')
-        q.append('from subs')
+            q.add_fields('subs.name')
         if unwatched:
-            q.append(
+            q.add_joins(
                 'join videos on subs.id == videos.sub and videos.watched == 0')
         if ids:
-            q.append('where name in ({})'.format(
-                Subscriptions._make_args(len(ids))))
+            q.add_filter('name in ({})'.format(Query.make_args(len(ids))))
         if unwatched:
-            q.append('group by subs.id')
-        q.append('order by subs.id')
-        c = self._conn.cursor()
-        c.execute(' '.join(q), ids)
+            q.add_group('subs.id')
+        c = self._conn.cursor().execute(q.query(), ids)
         for _ in map(print, map(' '.join, c)): pass
 
     def list_videos(
             self, subscriptions, n, by_name, url, flat, show_ids, watched):
-        fields = ['subs.id', 'subs.name', 'videos.watched']
+        q = Query('videos')
+        q.add_joins('join subs on subs.id == videos.sub')
+        q.add_fields('subs.id', 'subs.name', 'videos.watched')
+        q.add_order('subs.id', 'videos.id')
         if show_ids or url:
-            fields.append('videos.yt_id')
+            q.add_fields('videos.yt_id')
         if not url:
-            fields.append('videos.title')
-        ql = ['select', ', '.join(fields)]
-        ql.append('from subs join videos on subs.id = videos.sub')
+            q.add_fields('videos.title')
         args = []
-        where = []
         if subscriptions:
             if by_name:
-                where.append('({})'.format(
+                q.add_filter('({})'.format(
                     ' or '.join('subs.name glob ?' for _ in subscriptions)))
             else:
-                where.append('subs.yt_id in ({})'.format(
-                    Subscriptions._make_args(len(subscriptions))))
+                q.add_filter('subs.yt_id in ({})'.format(
+                    Query.make_args(len(subscriptions))))
             args.extend(subscriptions)
         if watched is not None:
-            where.append('(videos.watched == ?)')
+            q.add_filter('(videos.watched == ?)')
             args.append(int(watched))
-        if where:
-            ql.append('where ' + ' and '.join(where))
-        ql.append('order by subs.id, videos.id')
-        q = ' '.join(ql)
-        c = self._conn.cursor()
-        c.execute(q, args)
+        c = self._conn.cursor().execute(q.query(), args)
         n_subs = len(subscriptions)
         for (_, name), l in itertools.groupby(c, lambda x: x[:2]):
             if n is not None:
@@ -239,11 +280,12 @@ class Subscriptions(object):
             ' where subs.id == videos.sub'
             ' group by subs.id')
         total = [0, 0]
+        fmt = lambda w, n: (w / n, n - w, w, n)
         for name, n, watched in c:
-            print(n, watched / n, name)
+            print(*fmt(watched, n), name)
             total[0] += watched
             total[1] += n
-        print(total[1], total[0] / total[1], 'total')
+        print(*fmt(*total), 'total')
 
     def import_xml(self, path):
         tree = xml.etree.ElementTree.ElementTree(file=path)
@@ -291,11 +333,12 @@ class Subscriptions(object):
         c = self._conn.cursor()
         count = lambda: c.execute('select count(*) from videos').fetchone()[0]
         initial_count = count()
-        ql = ['select id, name, yt_id from subs where last_update < ?']
+        q = Query('subs')
+        q.add_fields('id', 'name', 'yt_id')
+        q.add_filter('last_update < ?')
         if items:
-            ql.append('and name in ({})'.format(
-                Subscriptions._make_args(len(items))))
-        subs = c.execute(' '.join(ql), (cache, *items)).fetchall()
+            q.add_filter('name in ({})'.format(Query.make_args(len(items))))
+        subs = c.execute(q.query(), (cache, *items)).fetchall()
         if client is None:
             client = Client(self._verbose)
         for sub_id, name, yt_id in subs:
@@ -330,39 +373,40 @@ class Subscriptions(object):
 
     def watched(self, items, subs, oldest, older_than, url, remove):
         assert(bool(subs) + bool(oldest) + bool(older_than) <= 1)
+        q = Query('videos')
         if subs:
-            q = (
+            q.add_filter(
                 'id in (select videos.id'
                 ' from subs join videos on subs.id == videos.sub'
                 ' where subs.name in ({}) and videos.watched == 0'
-                ' order by videos.id)').format(
-                    Subscriptions._make_args(len(items)))
+                ' order by videos.id)'.format(
+                    Query.make_args(len(items))))
         elif oldest:
-            q = (
+            q.add_filter(
                 'id in (select min(videos.id)'
                 ' from subs join videos on subs.id == videos.sub'
                 ' where subs.name in ({}) and videos.watched == 0'
-                ' group by subs.id  order by videos.id)').format(
-                    Subscriptions._make_args(len(items)))
+                ' group by subs.id  order by videos.id)'.format(
+                    Query.make_args(len(items))))
         elif older_than:
-            q = (
+            q.add_filter(
                 'id in (select j.id from videos'
                 ' join videos j on videos.sub == j.sub and videos.id > j.id'
                 ' where videos.yt_id in ({}))'.format(
-                    Subscriptions._make_args(len(items))))
+                    Query.make_args(len(items))))
         else:
-            q = 'yt_id in ({})'.format(Subscriptions._make_args(len(items)))
+            q.add_filter('yt_id in ({})'.format(Query.make_args(len(items))))
         c = self._conn.cursor()
         if url:
-            ql = ['select id, yt_id from videos where', q]
-            items = c .execute(' '.join(ql), items).fetchall()
-            q = 'id in ({})'.format(Subscriptions._make_args(len(items)))
+            q.add_fields('id, yt_id')
+            items = c .execute(q.query(), items).fetchall()
+            q = Query('videos')
+            q.add_fields('id')
+            q.add_filter('id in ({})'.format(Query.make_args(len(items))))
             ids = list(map(operator.itemgetter(0), items))
         else:
             ids = items
-        ql = ['update videos set watched = ? where', q]
-        q = ' '.join(ql)
-        c.execute(q, (not remove, *ids))
+        c.execute(q.update('watched = ?'), (not remove, *ids))
         if url:
             for x in items:
                 print(Client.VIDEO_URL.format(x[1]))
