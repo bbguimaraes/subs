@@ -218,8 +218,8 @@ class Subscriptions(object):
                 ' foreign key(sub) references subs(id))')
 
     def list(
-            self, ids: typing.Sequence[str],
-            show_id: bool, show_ids: bool, unwatched: bool):
+            self, ids: typing.Sequence[str]=(),
+            show_id: bool=None, show_ids: bool=None, unwatched: bool=None):
         assert(bool(show_id) + bool(show_ids) <= 1)
         q = Query(table='subs')
         q.add_order('subs.id')
@@ -240,9 +240,9 @@ class Subscriptions(object):
         for _ in map(print, map(' '.join, c)): pass
 
     def list_videos(
-            self, subscriptions: typing.Collection[str], n: int,
-            by_name: bool, url: bool, flat: bool,
-            show_ids: bool, watched: bool):
+            self, subscriptions: typing.Collection[str]=(),
+            n: int=None, by_name: bool=None, url: bool=None, flat: bool=None,
+            show_ids: bool=None, watched: bool=None):
         q = Query('videos')
         q.add_joins('join subs on subs.id == videos.sub')
         q.add_fields('subs.id', 'subs.name', 'videos.watched')
@@ -334,7 +334,9 @@ class Subscriptions(object):
             'insert into subs (yt_id, name) values (?, ?)',
             (yt_id, name))
 
-    def update(self, items: typing.Collection[str], cache: int, client=None):
+    def update(
+            self, items: typing.Collection[str],
+            cache: int=None, client=None):
         now = int(self._now().timestamp())
         cache = now - (cache if cache is not None else 24 * 60 * 60)
         c = self._conn.cursor()
@@ -380,8 +382,8 @@ class Subscriptions(object):
             (last_update, sub_id))
 
     def watched(
-            self, items: typing.Collection[str],
-            subs: bool, oldest: bool, older_than: bool, url: bool,
+            self, items: typing.Collection[str]=(), subs: bool=None,
+            oldest: bool=None, older_than: bool=None, url: bool=None,
             remove: bool=False):
         assert(bool(subs) + bool(oldest) + bool(older_than) <= 1)
         q = Query('videos')

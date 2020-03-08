@@ -41,43 +41,43 @@ class TestList(unittest.TestCase):
 
     def test_list(self):
         with wrap_stdout() as out:
-            self.subs.list((), None, None, None)
+            self.subs.list()
         out = out.read()
         self.assertEqual(out, 'sub0\nsub1\n')
         with wrap_stdout() as out:
-            self.subs.list(('sub0',), None, None, None)
+            self.subs.list(ids=('sub0',))
         out = out.read()
         self.assertEqual(out, 'sub0\n')
         with wrap_stdout() as out:
-            self.subs.list(('sub1',), None, None, None)
+            self.subs.list(ids=('sub1',))
         out = out.read()
         self.assertEqual(out, 'sub1\n')
 
     def test_show_id(self):
         with wrap_stdout() as out:
-            self.subs.list((), True, None, None)
+            self.subs.list(show_id=True)
         out = out.read()
         self.assertEqual(out, 'yt_id0\nyt_id1\n')
         with wrap_stdout() as out:
-            self.subs.list(('sub0',), True, None, None)
+            self.subs.list(ids=('sub0',), show_id=True)
         out = out.read()
         self.assertEqual(out, 'yt_id0\n')
         with wrap_stdout() as out:
-            self.subs.list(('sub1',), True, None, None)
+            self.subs.list(ids=('sub1',), show_id=True)
         out = out.read()
         self.assertEqual(out, 'yt_id1\n')
 
     def test_show_ids(self):
         with wrap_stdout() as out:
-            self.subs.list((), None, True, None)
+            self.subs.list(show_ids=True)
         out = out.read()
         self.assertEqual(out, 'yt_id0 sub0\nyt_id1 sub1\n')
         with wrap_stdout() as out:
-            self.subs.list(('sub0',), None, True, None)
+            self.subs.list(ids=('sub0',), show_ids=True)
         out = out.read()
         self.assertEqual(out, 'yt_id0 sub0\n')
         with wrap_stdout() as out:
-            self.subs.list(('sub1',), None, True, None)
+            self.subs.list(ids=('sub1',), show_ids=True)
         out = out.read()
         self.assertEqual(out, 'yt_id1 sub1\n')
 
@@ -85,22 +85,22 @@ class TestList(unittest.TestCase):
         c = self.conn.cursor()
         c.execute('update videos set watched = 1')
         with wrap_stdout() as out:
-            self.subs.list((), None, None, True)
+            self.subs.list(unwatched=True)
         out = out.read()
         self.assertEqual(out, '')
         c.execute('update videos set watched = 0 where id = ?', (1,))
         with wrap_stdout() as out:
-            self.subs.list(('sub1',), None, None, True)
+            self.subs.list(ids=('sub1',), unwatched=True)
         out = out.read()
         self.assertEqual(out, '')
         with wrap_stdout() as out:
-            self.subs.list((), None, None, True)
+            self.subs.list(unwatched=True)
         out = out.read()
         self.assertEqual(out, 'sub0\n')
         c.execute('update videos set watched = 1 where id = ?', (1,))
         c.execute('update videos set watched = 0 where id = ?', (5,))
         with wrap_stdout() as out:
-            self.subs.list((), None, None, True)
+            self.subs.list(unwatched=True)
         out = out.read()
         self.assertEqual(out, 'sub1\n')
 
@@ -127,7 +127,7 @@ class TestListVideos(unittest.TestCase):
 
     def test_list(self):
         with wrap_stdout() as out:
-            self.subs.list_videos((), None, None, None, None, None, None)
+            self.subs.list_videos()
         out = out.read()
         self.assertEqual(out,
             'sub0\n'
@@ -143,15 +143,13 @@ class TestListVideos(unittest.TestCase):
 
     def test_subscriptions(self):
         with wrap_stdout() as out:
-            self.subs.list_videos(
-                ('yt_id1',), None, None, None, None, None, None)
+            self.subs.list_videos(subscriptions=('yt_id1',))
         out = out.read()
         self.assertEqual(out,
             '[ ] title4\n'
             '[ ] title5\n')
         with wrap_stdout() as out:
-            self.subs.list_videos(
-                ('yt_id1', 'yt_id2'), None, None, None, None, None, None)
+            self.subs.list_videos(subscriptions=('yt_id1', 'yt_id2'))
         out = out.read()
         self.assertEqual(out,
             'sub1\n'
@@ -162,7 +160,7 @@ class TestListVideos(unittest.TestCase):
 
     def test_n(self):
         with wrap_stdout() as out:
-            self.subs.list_videos((), 1, None, None, None, None, None)
+            self.subs.list_videos(n=1)
         out = out.read()
         self.assertEqual(out,
             'sub0\n'
@@ -174,8 +172,7 @@ class TestListVideos(unittest.TestCase):
 
     def test_by_name(self):
         with wrap_stdout() as out:
-            self.subs.list_videos(
-                ('sub1',), None, True, None, None, None, None)
+            self.subs.list_videos(by_name=True, subscriptions=('sub1',))
         out = out.read()
         self.assertEqual(out,
             '[ ] title4\n'
@@ -183,7 +180,7 @@ class TestListVideos(unittest.TestCase):
 
     def test_url(self):
         with wrap_stdout() as out:
-            self.subs.list_videos((), None, None, True, None, None, None)
+            self.subs.list_videos(url=True)
         out = out.read()
         self.assertEqual(out,
             'sub0\n'
@@ -199,7 +196,7 @@ class TestListVideos(unittest.TestCase):
 
     def test_flat(self):
         with wrap_stdout() as out:
-            self.subs.list_videos((), None, None, None, True, None, None)
+            self.subs.list_videos(flat=True)
         out = out.read()
         self.assertEqual(out,
             '[ ] title0\n'
@@ -212,7 +209,7 @@ class TestListVideos(unittest.TestCase):
 
     def test_show_ids(self):
         with wrap_stdout() as out:
-            self.subs.list_videos((), None, None, None, None, True, None)
+            self.subs.list_videos(show_ids=True)
         out = out.read()
         self.assertEqual(out,
             'sub0\n'
@@ -228,7 +225,7 @@ class TestListVideos(unittest.TestCase):
 
     def test_watched(self):
         with wrap_stdout() as out:
-            self.subs.list_videos((), None, None, None, None, None, True)
+            self.subs.list_videos(watched=True)
         out = out.read()
         self.assertEqual(out,
             'sub0\n'
@@ -237,7 +234,7 @@ class TestListVideos(unittest.TestCase):
             'sub2\n'
             '  title6\n')
         with wrap_stdout() as out:
-            self.subs.list_videos((), None, None, None, None, None, False)
+            self.subs.list_videos(watched=False)
         out = out.read()
         self.assertEqual(out,
             'sub0\n'
@@ -250,7 +247,8 @@ class TestListVideos(unittest.TestCase):
     def test_mixed(self):
         with wrap_stdout() as out:
             self.subs.list_videos(
-                ('sub0', 'sub2'), 2, True, None, True, True, True)
+                subscriptions=('sub0', 'sub2'),
+                n=2, by_name=True, flat=True, show_ids=True, watched=True)
         out = out.read()
         self.assertEqual(out,
             'yt_id3 title1\n'
@@ -289,7 +287,8 @@ class TestUpdate(unittest.TestCase):
         last_update = int(self.now.timestamp()) - 1
         c = self.conn.cursor()
         c.execute('update subs set last_update = ?', (last_update,))
-        self.subs.update((), 1, subs.Client(24 * 60, self.FakeYoutubeDL()))
+        self.subs.update(
+            (), cache=1, client=subs.Client(24 * 60, self.FakeYoutubeDL()))
         ret = min(
             y for x in c.execute('select distinct last_update from subs')
             for y in x)
@@ -301,7 +300,7 @@ class TestUpdate(unittest.TestCase):
             'https://www.youtube.com/channel/yt_id1': {'url': 'yt_id1_url'},
             'yt_id0_url': {'entries': ()},
             'yt_id1_url': {'entries': ()}})
-        self.subs.update((), 0, subs.Client(0, ydl))
+        self.subs.update((), client=subs.Client(0, ydl))
         ret = min(
             y for x in self.conn.cursor().execute(
                 'select distinct last_update from subs')
@@ -317,7 +316,7 @@ class TestUpdate(unittest.TestCase):
                 'entries': (
                     {'id': 'yt_id9', 'title': 'title7'},
                     {'id': 'yt_id10', 'title': 'title8'})}})
-        self.subs.update((), 0, subs.Client(0, ydl))
+        self.subs.update((), client=subs.Client(0, ydl))
         c = self.conn.cursor()
         ret = {
             y for x in c.execute(
@@ -350,14 +349,14 @@ class TestWatched(unittest.TestCase):
                 (2, 'yt_id7', 'title5')))
 
     def test_watched_yt_ids(self):
-        self.subs.watched(('yt_id3',), None, None, None, None, False)
+        self.subs.watched(items=('yt_id3',))
         c = self.conn.cursor()
         c.execute('select id from videos where watched == 1')
         self.assertEqual(c.fetchall(), [(2,)])
 
     def test_watched_yt_ids_print_url(self):
         with wrap_stdout() as out:
-            self.subs.watched(('yt_id3',), None, None, None, True, False)
+            self.subs.watched(items=('yt_id3',), url=True)
         c = self.conn.cursor()
         c.execute('select id from videos where watched == 1')
         self.assertEqual(c.fetchall(), [(2,)])
@@ -365,14 +364,14 @@ class TestWatched(unittest.TestCase):
         self.assertEqual(out, 'https://www.youtube.com/watch?v=yt_id3\n')
 
     def test_watched_subs(self):
-        self.subs.watched(('sub0', 'sub2'), True, None, None, None, False)
+        self.subs.watched(items=('sub0', 'sub2'), subs=True)
         c = self.conn.cursor()
         c.execute('select id from videos where watched == 1')
         self.assertEqual(c.fetchall(), [(1,), (2,), (3,), (4,)])
 
     def test_watched_subs_print_url(self):
         with wrap_stdout() as out:
-            self.subs.watched(('sub0', 'sub2'), True, None, None, True, False)
+            self.subs.watched(items=('sub0', 'sub2'), subs=True, url=True)
         c = self.conn.cursor()
         c.execute('select id from videos where watched == 1')
         self.assertEqual(c.fetchall(), [(1,), (2,), (3,), (4,)])
@@ -384,14 +383,14 @@ class TestWatched(unittest.TestCase):
             'https://www.youtube.com/watch?v=yt_id5\n')
 
     def test_watched_oldest(self):
-        self.subs.watched(('sub0', 'sub1'), None, True, None, None, False)
+        self.subs.watched(items=('sub0', 'sub1'), oldest=True)
         c = self.conn.cursor()
         c.execute('select id from videos where watched == 1')
         self.assertEqual(c.fetchall(), [(1,), (5,)])
 
     def test_watched_oldest_print_url(self):
         with wrap_stdout() as out:
-            self.subs.watched(('sub0', 'sub1'), None, True, None, True, False)
+            self.subs.watched(items=('sub0', 'sub1'), oldest=True, url=True)
         c = self.conn.cursor()
         c.execute('select id from videos where watched == 1')
         self.assertEqual(c.fetchall(), [(1,), (5,)])
@@ -401,14 +400,14 @@ class TestWatched(unittest.TestCase):
             'https://www.youtube.com/watch?v=yt_id6\n')
 
     def test_watched_older_than(self):
-        self.subs.watched(('yt_id3',), None, None, True, None, False)
+        self.subs.watched(items=('yt_id3',), older_than=True)
         c = self.conn.cursor()
         c.execute('select id from videos where watched == 1')
         self.assertEqual(c.fetchall(), [(1,)])
 
     def test_watched_older_than_print_url(self):
         with wrap_stdout() as out:
-            self.subs.watched(('yt_id4',), None, None, True, True, False)
+            self.subs.watched(items=('yt_id4',), older_than=True, url=True)
         c = self.conn.cursor()
         c.execute('select id from videos where watched == 1')
         self.assertEqual(c.fetchall(), [(1,), (2,)])
@@ -419,12 +418,12 @@ class TestWatched(unittest.TestCase):
 
     def test_remove(self):
         with wrap_stdout() as out:
-            self.subs.watched(('yt_id2',), None, None, None, None, False)
-            self.subs.list_videos((), None, None, None, None, None, True)
+            self.subs.watched(items=('yt_id2',))
+            self.subs.list_videos(watched=True)
         self.assertEqual(out.read(),
             'sub0\n'
             '  title0\n')
         with wrap_stdout() as out:
-            self.subs.watched(('yt_id2',), None, None, None, None, True)
-            self.subs.list_videos((), None, None, None, None, None, True)
+            self.subs.watched(items=('yt_id2',), remove=True)
+            self.subs.list_videos(watched=True)
         self.assertEqual(out.read(), '')
