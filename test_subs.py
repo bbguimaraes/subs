@@ -55,31 +55,17 @@ class TestList(unittest.TestCase):
 
     def test_show_id(self):
         with wrap_stdout() as out:
-            self.subs.list(show_id=True)
+            self.subs.list(fields=('yt_id',))
         out = out.read()
         self.assertEqual(out, 'yt_id0\nyt_id1\n')
         with wrap_stdout() as out:
-            self.subs.list(ids=('sub0',), show_id=True)
+            self.subs.list(ids=('sub0',), fields=('yt_id',))
         out = out.read()
         self.assertEqual(out, 'yt_id0\n')
         with wrap_stdout() as out:
-            self.subs.list(ids=('sub1',), show_id=True)
+            self.subs.list(ids=('sub1',), fields=('yt_id',))
         out = out.read()
         self.assertEqual(out, 'yt_id1\n')
-
-    def test_show_ids(self):
-        with wrap_stdout() as out:
-            self.subs.list(show_ids=True)
-        out = out.read()
-        self.assertEqual(out, 'yt_id0 sub0\nyt_id1 sub1\n')
-        with wrap_stdout() as out:
-            self.subs.list(ids=('sub0',), show_ids=True)
-        out = out.read()
-        self.assertEqual(out, 'yt_id0 sub0\n')
-        with wrap_stdout() as out:
-            self.subs.list(ids=('sub1',), show_ids=True)
-        out = out.read()
-        self.assertEqual(out, 'yt_id1 sub1\n')
 
     def test_unwatched(self):
         c = self.conn.cursor()
@@ -178,22 +164,6 @@ class TestListVideos(unittest.TestCase):
             '[ ] title4\n'
             '[ ] title5\n')
 
-    def test_url(self):
-        with wrap_stdout() as out:
-            self.subs.list_videos(url=True)
-        out = out.read()
-        self.assertEqual(out,
-            'sub0\n'
-            '  [ ] https://www.youtube.com/watch?v=yt_id2\n'
-            '  [x] https://www.youtube.com/watch?v=yt_id3\n'
-            '  [ ] https://www.youtube.com/watch?v=yt_id4\n'
-            '  [x] https://www.youtube.com/watch?v=yt_id5\n'
-            'sub1\n'
-            '  [ ] https://www.youtube.com/watch?v=yt_id6\n'
-            '  [ ] https://www.youtube.com/watch?v=yt_id7\n'
-            'sub2\n'
-            '  [x] https://www.youtube.com/watch?v=yt_id8\n')
-
     def test_flat(self):
         with wrap_stdout() as out:
             self.subs.list_videos(flat=True)
@@ -207,9 +177,75 @@ class TestListVideos(unittest.TestCase):
             '[ ] title5\n'
             '[x] title6\n')
 
-    def test_show_ids(self):
+    def test_watched(self):
         with wrap_stdout() as out:
-            self.subs.list_videos(show_ids=True)
+            self.subs.list_videos(watched=True)
+        out = out.read()
+        self.assertEqual(out,
+            'sub0\n'
+            '  [x] title1\n'
+            '  [x] title3\n'
+            'sub2\n'
+            '  [x] title6\n')
+        with wrap_stdout() as out:
+            self.subs.list_videos(watched=False)
+        out = out.read()
+        self.assertEqual(out,
+            'sub0\n'
+            '  [ ] title0\n'
+            '  [ ] title2\n'
+            'sub1\n'
+            '  [ ] title4\n'
+            '  [ ] title5\n')
+
+    def test_fields(self):
+        self.assertRaisesRegex(
+            ValueError, '^invalid fields: invalid$',
+            self.subs.list_videos, fields=('invalid',))
+        with wrap_stdout() as out:
+            self.subs.list_videos(fields=('title',))
+        out = out.read()
+        self.assertEqual(out,
+            'sub0\n'
+            '  title0\n'
+            '  title1\n'
+            '  title2\n'
+            '  title3\n'
+            'sub1\n'
+            '  title4\n'
+            '  title5\n'
+            'sub2\n'
+            '  title6\n')
+        with wrap_stdout() as out:
+            self.subs.list_videos(fields=('yt_id',))
+        out = out.read()
+        self.assertEqual(out,
+            'sub0\n'
+            '  yt_id2\n'
+            '  yt_id3\n'
+            '  yt_id4\n'
+            '  yt_id5\n'
+            'sub1\n'
+            '  yt_id6\n'
+            '  yt_id7\n'
+            'sub2\n'
+            '  yt_id8\n')
+        with wrap_stdout() as out:
+            self.subs.list_videos(fields=('watched',))
+        out = out.read()
+        self.assertEqual(out,
+            'sub0\n'
+            '  [ ]\n'
+            '  [x]\n'
+            '  [ ]\n'
+            '  [x]\n'
+            'sub1\n'
+            '  [ ]\n'
+            '  [ ]\n'
+            'sub2\n'
+            '  [x]\n')
+        with wrap_stdout() as out:
+            self.subs.list_videos(fields=('watched', 'yt_id', 'title'))
         out = out.read()
         self.assertEqual(out,
             'sub0\n'
@@ -223,32 +259,12 @@ class TestListVideos(unittest.TestCase):
             'sub2\n'
             '  [x] yt_id8 title6\n')
 
-    def test_watched(self):
-        with wrap_stdout() as out:
-            self.subs.list_videos(watched=True)
-        out = out.read()
-        self.assertEqual(out,
-            'sub0\n'
-            '  title1\n'
-            '  title3\n'
-            'sub2\n'
-            '  title6\n')
-        with wrap_stdout() as out:
-            self.subs.list_videos(watched=False)
-        out = out.read()
-        self.assertEqual(out,
-            'sub0\n'
-            '  title0\n'
-            '  title2\n'
-            'sub1\n'
-            '  title4\n'
-            '  title5\n')
-
     def test_mixed(self):
         with wrap_stdout() as out:
             self.subs.list_videos(
                 subscriptions=('sub0', 'sub2'),
-                n=2, by_name=True, flat=True, show_ids=True, watched=True)
+                fields=('yt_id', 'title'),
+                n=2, by_name=True, flat=True, watched=True)
         out = out.read()
         self.assertEqual(out,
             'yt_id3 title1\n'
@@ -422,7 +438,7 @@ class TestWatched(unittest.TestCase):
             self.subs.list_videos(watched=True)
         self.assertEqual(out.read(),
             'sub0\n'
-            '  title0\n')
+            '  [x] title0\n')
         with wrap_stdout() as out:
             self.subs.watched(items=('yt_id2',), remove=True)
             self.subs.list_videos(watched=True)
