@@ -2,6 +2,7 @@
 import argparse
 import datetime
 import itertools
+import multiprocessing.dummy
 import operator
 import os
 import sqlite3
@@ -78,6 +79,7 @@ List subscriptions using `ls`, videos using `videos`.
     update_parser = sub.add_parser('update')
     update_parser.set_defaults(cmd=Subscriptions.update)
     update_parser.add_argument('items', type=str, nargs='*')
+    update_parser.add_argument('-t', '--threads', type=int)
     update_parser.add_argument('--cache',
         type=int, metavar='s', help='''\
 only update subscriptions that were last fetched `s` seconds ago or earlier
@@ -356,7 +358,7 @@ class Subscriptions(object):
 
     def update(
             self, items: typing.Collection[str],
-            cache: int=None, client=None):
+            threads: int=None, cache: int=None, client=None):
         now = int(self._now().timestamp())
         cache = now - (cache if cache is not None else 24 * 60 * 60)
         c = self._conn.cursor()
@@ -370,18 +372,19 @@ class Subscriptions(object):
         subs = c.execute(q.query(), (cache, *items)).fetchall()
         if client is None:
             client = Client(self._verbose)
-        for sub_id, name, yt_id in subs:
-            self._log('updating', name)
-            videos = client.channel_entries(yt_id)
-            self._log('found', len(videos), 'videos')
-            videos = filter(
-                lambda x: not self._video_exists(c, x[0]),
-                map(operator.itemgetter('id', 'title'), reversed(videos)))
-            for vid, title in videos:
-                self._log('adding video', vid, '-', title)
-                self._add_video(c, sub_id, vid, title)
-            self._update_sub(c, sub_id, now)
-            c.execute('commit')
+        fetch = lambda l: (*l[:-1], client.channel_entries(l[-1]))
+        with multiprocessing.dummy.Pool(threads or 1) as pool:
+            for sub_id, name, videos in pool.imap_unordered(fetch, subs):
+                self._log('updating', name)
+                self._log('found', len(videos), 'videos')
+                videos = filter(
+                    lambda x: not self._video_exists(c, x[0]),
+                    map(operator.itemgetter('id', 'title'), reversed(videos)))
+                for vid, title in videos:
+                    self._log('adding video', vid, '-', title)
+                    self._add_video(c, sub_id, vid, title)
+                self._update_sub(c, sub_id, now)
+                c.execute('commit')
         for _ in c: pass
         self._log(f'{count() - initial_count} new videos added after @{cache}')
 
