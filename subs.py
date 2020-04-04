@@ -85,6 +85,10 @@ List subscriptions using `ls`, videos using `videos`.
 only update subscriptions that were last fetched `s` seconds ago or earlier
 (default: 24 * 60 * 60)
 ''')
+    update_parser.add_argument('--last-video',
+        type=int, metavar='s', help='''\
+only update subscriptions that had a new video less than `s` seconds ago
+''')
     watched_parser = sub.add_parser('watched')
     watched_parser.set_defaults(cmd=Subscriptions.watched)
     watched_parser.add_argument('items', type=str, nargs='*')
@@ -211,7 +215,8 @@ class Subscriptions(object):
                 'id integer not null primary key,'
                 ' yt_id text unique not null,'
                 ' name text null,'
-                ' last_update integer not null default(0))')
+                ' last_update integer not null default(0),'
+                ' last_video integer not null default(0))')
         if 'videos' in tables:
             self._log('creating table videos')
             c.execute(
@@ -358,18 +363,25 @@ class Subscriptions(object):
 
     def update(
             self, items: typing.Collection[str],
-            threads: int=None, cache: int=None, client=None):
+            threads: int=None, cache: int=None, last_video: int=None,
+            client=None):
         now = int(self._now().timestamp())
         cache = now - (cache if cache is not None else 24 * 60 * 60)
         c = self._conn.cursor()
         count = lambda: c.execute('select count(*) from videos').fetchone()[0]
         initial_count = count()
         q = Query('subs')
+        args: typing.List[typing.Any] = []
         q.add_fields('id', 'name', 'yt_id')
         q.add_filter('last_update < ?')
+        args.append(cache)
+        if last_video is not None:
+            q.add_filter('(last_video != 0 and last_video >= ?)')
+            args.append(now - last_video)
         if items:
-            q.add_filter('name in ({})'.format(Query.make_args(len(items))))
-        subs = c.execute(q.query(), (cache, *items)).fetchall()
+            q.add_filter(f'name in ({Query.make_args(len(items))})')
+            args.extend(items)
+        subs = c.execute(q.query(), args).fetchall()
         if client is None:
             client = Client(self._verbose)
         fetch = lambda l: (*l[:-1], client.channel_entries(l[-1]))
@@ -377,13 +389,13 @@ class Subscriptions(object):
             for sub_id, name, videos in pool.imap_unordered(fetch, subs):
                 self._log('updating', name)
                 self._log('found', len(videos), 'videos')
-                videos = filter(
+                videos = list(filter(
                     lambda x: not self._video_exists(c, x[0]),
-                    map(operator.itemgetter('id', 'title'), reversed(videos)))
+                    map(operator.itemgetter('id', 'title'), reversed(videos))))
                 for vid, title in videos:
                     self._log('adding video', vid, '-', title)
                     self._add_video(c, sub_id, vid, title)
-                self._update_sub(c, sub_id, now)
+                self._update_sub(c, sub_id, now, now if videos else None)
                 c.execute('commit')
         for _ in c: pass
         self._log(f'{count() - initial_count} new videos added after @{cache}')
@@ -399,10 +411,16 @@ class Subscriptions(object):
             'insert into videos (sub, yt_id, title) values (?, ?, ?)',
             (sub_id, yt_id, title))
 
-    def _update_sub(self, c: sqlite3.Cursor, sub_id: str, last_update: int):
+    def _update_sub(
+            self, c: sqlite3.Cursor, sub_id: str,
+            last_update: int, last_video: typing.Optional[int]):
         c.execute(
             'update subs set last_update = ? where id == ?',
             (last_update, sub_id))
+        if last_video is not None:
+            c.execute(
+                'update subs set last_video = ? where id == ?',
+                (last_video, sub_id))
 
     def watched(
             self, items: typing.Collection[str]=(), subs: bool=None,

@@ -345,6 +345,34 @@ class TestUpdate(unittest.TestCase):
             (2, 'yt_id9', 'title7'),
             (2, 'yt_id10', 'title8')})
 
+    def test_set_last_video(self):
+        c = self.conn.cursor()
+        last_video = lambda: \
+            c.execute('select id, last_video from subs').fetchall()
+        self.assertEqual(last_video(), [(1, 0), (2, 0)])
+        resp = {
+            'https://www.youtube.com/channel/yt_id0': {'url': 'yt_id0_url'},
+            'https://www.youtube.com/channel/yt_id1': {'url': 'yt_id1_url'},
+            'yt_id0_url': {'entries': ({'id': 'yt_id8', 'title': 'title6'},)},
+            'yt_id1_url': {'entries': ()}}
+        self.subs.update((), client=subs.Client(0, self.FakeYoutubeDL(resp)))
+        self.assertEqual(
+            last_video(),
+            [(1, int(self.now.timestamp())), (2, 0)])
+
+    def test_last_video(self):
+        c = self.conn.cursor()
+        c.execute(
+            'update subs set last_video = ? where id = ?',
+            (int(self.now.timestamp()), 2))
+        resp = {
+            'https://www.youtube.com/channel/yt_id1': {'url': 'yt_id1_url'},
+            'yt_id1_url': {'entries': ({'id': 'yt_id8', 'title': 'title6'},)}}
+        self.subs.update(
+            (), last_video=0, client=subs.Client(0, self.FakeYoutubeDL(resp)))
+        c.execute('select count(*) from videos where sub == 2')
+        self.assertEqual(c.fetchone()[0], 3)
+
 
 class TestWatched(unittest.TestCase):
     def setUp(self):
