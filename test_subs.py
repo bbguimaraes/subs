@@ -374,6 +374,84 @@ class TestUpdate(unittest.TestCase):
         self.assertEqual(c.fetchone()[0], 3)
 
 
+class TestTag(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        self.subs = subs.Subscriptions(0, self.conn)
+        self.subs.init()
+        c = self.conn.cursor()
+        c.executemany(
+            'insert into subs (yt_id, name) values (?, ?)', (
+                ('yt_id0', 'sub0'), ('yt_id1', 'sub1')))
+        c.executemany(
+            'insert into videos (sub, yt_id, title) values (?, ?, ?)', (
+                (1, 'yt_id2', 'title0'),
+                (1, 'yt_id3', 'title1'),
+                (1, 'yt_id4', 'title2'),
+                (1, 'yt_id5', 'title3'),
+                (2, 'yt_id6', 'title4'),
+                (2, 'yt_id7', 'title5')))
+        c = self.conn.cursor()
+        with wrap_stdout():
+            self.subs.tag(tag='tag0', items=('yt_id2', 'yt_id3'))
+            self.subs.tag(tag='tag1', items=('yt_id3', 'yt_id6'))
+
+    def test_untagged(self):
+        with wrap_stdout() as out:
+            self.subs.list_videos(untagged=True)
+        out = out.read()
+        self.assertEqual(out,
+            'sub0\n'
+            '  [ ] title2\n'
+            '  [ ] title3\n'
+            'sub1\n'
+            '  [ ] title5\n')
+
+    def test_tag(self):
+        with wrap_stdout() as out:
+            self.subs.list_videos(tags=('tag0',))
+        out = out.read()
+        self.assertEqual(out,
+            'sub0\n'
+            '  [ ] title0\n'
+            '  [ ] title1\n')
+        with wrap_stdout() as out:
+            self.subs.list_videos(tags=('tag1',))
+        out = out.read()
+        self.assertEqual(out,
+            'sub0\n'
+            '  [ ] title1\n'
+            'sub1\n'
+            '  [ ] title4\n')
+        with wrap_stdout() as out:
+            self.subs.list_videos(tags=('tag0', 'tag1'))
+        out = out.read()
+        self.assertEqual(out,
+            'sub0\n'
+            '  [ ] title0\n'
+            '  [ ] title1\n'
+            'sub1\n'
+            '  [ ] title4\n')
+
+    def test_remove(self):
+        c = self.conn.cursor()
+        with wrap_stdout():
+            self.subs.tag(remove=True, tag='tag0', items=('yt_id3',))
+            self.subs.tag(remove=True, tag='tag1', items=('yt_id6',))
+        with wrap_stdout() as out:
+            self.subs.list_videos(tags=('tag0',))
+        out = out.read()
+        self.assertEqual(out,
+            'sub0\n'
+            '  [ ] title0\n')
+        with wrap_stdout() as out:
+            self.subs.list_videos(tags=('tag1',))
+        out = out.read()
+        self.assertEqual(out,
+            'sub0\n'
+            '  [ ] title1\n')
+
+
 class TestWatched(unittest.TestCase):
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
