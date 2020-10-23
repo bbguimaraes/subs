@@ -96,6 +96,7 @@ only update subscriptions that had a new video less than `s` seconds ago
     tag_parser.add_argument('tag', type=str)
     tag_parser.add_argument('items', type=str, nargs='*')
     tag_parser.add_argument('--remove', action='store_true')
+    tag_parser.add_argument('--sub', action='store_true')
     watched_parser = sub.add_parser('watched')
     watched_parser.set_defaults(cmd=Subscriptions.watched)
     watched_parser.add_argument('items', type=str, nargs='*')
@@ -214,7 +215,9 @@ class Subscriptions(object):
     def init(self):
         c = self._conn.cursor()
         c.execute('select name from sqlite_master where type="table"')
-        tables = {'subs', 'videos', 'tags', 'videos_tags'} - {x[0] for x in c}
+        tables = (
+            {'subs', 'videos', 'tags', 'subs_tags', 'videos_tags'}
+            - {x[0] for x in c})
         if 'subs' in tables:
             self._log('creating table subs')
             c.execute(
@@ -240,20 +243,31 @@ class Subscriptions(object):
                 'create table tags ('
                 'id integer not null primary key,'
                 ' name text not null)')
+        if 'subs_tags' in tables:
+            self._log('creating table subs_tags')
+            c.execute(
+                'create table subs_tags ('
+                'id integer not null primary key,'
+                ' sub integer not null,'
+                ' tag integer not null,'
+                ' foreign key(sub) references subs(id),'
+                ' foreign key(tag) references tags(id))')
         if 'videos_tags' in tables:
             self._log('creating table videos_tags')
             c.execute(
                 'create table videos_tags ('
                 'id integer not null primary key,'
-                'video integer not null,'
-                'tag integer not null,'
-                'foreign key(video) references videos(id),'
-                'foreign key(tag) references tags(id))')
+                ' video integer not null,'
+                ' tag integer not null,'
+                ' foreign key(video) references videos(id),'
+                ' foreign key(tag) references tags(id))')
 
     def list(
-            self, ids: typing.Sequence[str]=(),
+            self, ids: typing.List[str]=[],
             show_id: bool=None, unwatched: bool=None,
+            tags: typing.List[str]=None,
             fields: typing.Optional[typing.Sequence[str]]=None):
+        args: typing.List[str] = ids or []
         q = Query(table='subs')
         q.add_order('subs.id')
         fields = Subscriptions._parse_fields(
@@ -266,7 +280,14 @@ class Subscriptions(object):
             q.add_filter('name in ({})'.format(Query.make_args(len(ids))))
         if unwatched:
             q.add_group('subs.id')
-        c = self._conn.cursor().execute(q.query(), ids)
+        if tags:
+            q.add_joins(
+                'join (tags, subs_tags)'
+                ' on (subs.id == subs_tags.sub and tags.id == subs_tags.tag)')
+            q.add_filter('(tags.name in ({}))'.format(
+                Query.make_args(len(tags))))
+            args.extend(tags)
+        c = self._conn.cursor().execute(q.query(distinct=bool(tags)), args)
         for _ in map(print, map(' '.join, c)): pass
 
     def list_videos(
@@ -445,6 +466,11 @@ class Subscriptions(object):
         c.execute(
             'insert into videos (sub, yt_id, title) values (?, ?, ?)',
             (sub_id, yt_id, title))
+        video_id: int = c.execute('select last_insert_rowid()').fetchone()[0]
+        c.execute(
+            'insert into videos_tags (video, tag) '
+            ' select ?, tag from subs_tags where sub == ?',
+            (video_id, sub_id))
 
     def _update_sub(
             self, c: sqlite3.Cursor, sub_id: str,
@@ -459,7 +485,7 @@ class Subscriptions(object):
 
     def tag(
             self, tag: str, items: typing.Collection[str]=(),
-            remove: bool=False):
+            remove: bool=False, sub: bool=False):
         c = self._conn.cursor()
         tag_id = \
             c.execute('select id from tags where name == ?', (tag,)) \
@@ -469,19 +495,25 @@ class Subscriptions(object):
         else:
             c.execute('insert into tags (name) values (?)', (tag,))
             tag_id = c.execute('select last_insert_rowid()').fetchone()[0]
+        if sub:
+            join, table, field = 'subs_tags', 'subs', 'sub'
+        else:
+            join, table, field = 'videos_tags', 'videos', 'video'
         if not remove:
             c.execute(
-                'insert into videos_tags (tag, video)'
-                ' select ?, videos.id from videos'
-                ' where videos.yt_id in ({})'.format(
-                    Query.make_args(len(items))),
+                'insert into {join} (tag, {field})'
+                ' select ?, {table}.id from {table}'
+                ' where {table}.yt_id in ({})'.format(
+                    Query.make_args(len(items)),
+                    join=join, table=table, field=field),
                 (tag_id, *items))
         else:
             c.execute(
-                'delete from videos_tags'
-                ' where tag == ? and video in ('
-                'select id from videos where yt_id in ({}))'.format(
-                    Query.make_args(len(items))),
+                'delete from {join}'
+                ' where tag == ? and {field} in ('
+                'select id from {table} where yt_id in ({}))'.format(
+                    Query.make_args(len(items)),
+                    join=join, table=table, field=field),
                 (tag_id, *items))
 
     def watched(

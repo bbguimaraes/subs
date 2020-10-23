@@ -373,8 +373,28 @@ class TestUpdate(unittest.TestCase):
         c.execute('select count(*) from videos where sub == 2')
         self.assertEqual(c.fetchone()[0], 3)
 
+    def test_tags(self):
+        c = self.conn.cursor()
+        c.executemany(
+            'insert into tags (name) values (?)',
+            (('tag0',), ('tag1',)))
+        c.executemany(
+            'insert into subs_tags (sub, tag) values (?, ?)',
+            ((1, 1), (1, 2)))
+        resp = {
+            'https://www.youtube.com/channel/yt_id0': {'url': 'yt_id0_url'},
+            'https://www.youtube.com/channel/yt_id1': {'url': 'yt_id1_url'},
+            'yt_id0_url': {'entries': (
+                {'id': 'yt_id8', 'title': 'title6'},
+                {'id': 'yt_id9', 'title': 'title7'})},
+            'yt_id1_url': {'entries': ()}}
+        self.subs.update(
+            (), client=subs.Client(0, self.FakeYoutubeDL(resp)))
+        c.execute('select video, tag from videos_tags')
+        self.assertEqual(c.fetchall(), [(7, 1), (7, 2), (8, 1), (8, 2)])
 
-class TestTag(unittest.TestCase):
+
+class TestTagVideo(unittest.TestCase):
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         self.subs = subs.Subscriptions(0, self.conn)
@@ -450,6 +470,15 @@ class TestTag(unittest.TestCase):
         self.assertEqual(out,
             'sub0\n'
             '  [ ] title1\n')
+
+    def test_sub(self):
+        c = self.conn.cursor()
+        with wrap_stdout():
+            self.subs.tag(sub=True, tag='tag0', items=('yt_id0',))
+        with wrap_stdout() as out:
+            self.subs.list(tags=('tag0',))
+        out = out.read()
+        self.assertEqual(out, 'sub0\n')
 
 
 class TestWatched(unittest.TestCase):
