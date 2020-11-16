@@ -368,16 +368,30 @@ class Subscriptions(object):
             for sub_id, name, videos in pool.imap_unordered(fetch, subs):
                 self._log('updating', name)
                 self._log('found', len(videos), 'videos')
-                videos = list(filter(
-                    lambda x: not self._video_exists(c, x[0]),
-                    map(operator.itemgetter('id', 'title'), reversed(videos))))
-                for vid, title in videos:
-                    self._log('adding video', vid, '-', title)
-                    self._add_video(c, sub_id, vid, title)
+                if videos:
+                    videos = map(operator.itemgetter('id', 'title'), videos)
+                    videos = Subscriptions._remove_duplicates(videos)
+                    videos = list(filter(
+                        lambda x: not self._video_exists(c, x[0]), videos))
+                    for vid, title in reversed(videos):
+                        self._log('adding video', vid, '-', title)
+                        self._add_video(c, sub_id, vid, title)
                 self._update_sub(c, sub_id, now, now if videos else None)
                 c.execute('commit')
         for _ in c: pass
         self._log(f'{count() - initial_count} new videos added after @{cache}')
+
+    @staticmethod
+    def _remove_duplicates(l: typing.Collection[dict]):
+        ret = []
+        seen: typing.Set[str] = set()
+        for x in l:
+            yt_id, *_ = x
+            if yt_id in seen:
+                continue
+            seen.add(yt_id)
+            ret.append(x)
+        return ret
 
     def _video_exists(self, c: sqlite3.Cursor, yt_id: str):
         return bool(c
