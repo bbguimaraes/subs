@@ -312,10 +312,8 @@ class TestUpdate(unittest.TestCase):
 
     def test_no_updates(self):
         ydl = self.FakeYoutubeDL({
-            'https://www.youtube.com/channel/yt_id0': {'url': 'yt_id0_url'},
-            'https://www.youtube.com/channel/yt_id1': {'url': 'yt_id1_url'},
-            'yt_id0_url': {'entries': ()},
-            'yt_id1_url': {'entries': ()}})
+            'https://www.youtube.com/channel/yt_id0/videos': {'entries': ()},
+            'https://www.youtube.com/channel/yt_id1/videos': {'entries': ()}})
         self.subs.update((), client=subs.Client(0, ydl))
         ret = min(
             y for x in self.conn.cursor().execute(
@@ -325,10 +323,9 @@ class TestUpdate(unittest.TestCase):
 
     def test_update(self):
         ydl = self.FakeYoutubeDL({
-            'https://www.youtube.com/channel/yt_id0': {'url': 'yt_id0_url'},
-            'https://www.youtube.com/channel/yt_id1': {'url': 'yt_id1_url'},
-            'yt_id0_url': {'entries': ({'id': 'yt_id8', 'title': 'title6'},)},
-            'yt_id1_url': {
+            'https://www.youtube.com/channel/yt_id0/videos':
+                {'entries': ({'id': 'yt_id8', 'title': 'title6'},)},
+            'https://www.youtube.com/channel/yt_id1/videos': {
                 'entries': (
                     {'id': 'yt_id9', 'title': 'title7'},
                     {'id': 'yt_id10', 'title': 'title8'})}})
@@ -351,10 +348,9 @@ class TestUpdate(unittest.TestCase):
             c.execute('select id, last_video from subs').fetchall()
         self.assertEqual(last_video(), [(1, 0), (2, 0)])
         resp = {
-            'https://www.youtube.com/channel/yt_id0': {'url': 'yt_id0_url'},
-            'https://www.youtube.com/channel/yt_id1': {'url': 'yt_id1_url'},
-            'yt_id0_url': {'entries': ({'id': 'yt_id8', 'title': 'title6'},)},
-            'yt_id1_url': {'entries': ()}}
+            'https://www.youtube.com/channel/yt_id0/videos':
+                {'entries': ({'id': 'yt_id8', 'title': 'title6'},)},
+            'https://www.youtube.com/channel/yt_id1/videos': {'entries': ()}}
         self.subs.update((), client=subs.Client(0, self.FakeYoutubeDL(resp)))
         self.assertEqual(
             last_video(),
@@ -366,8 +362,8 @@ class TestUpdate(unittest.TestCase):
             'update subs set last_video = ? where id = ?',
             (int(self.now.timestamp()), 2))
         resp = {
-            'https://www.youtube.com/channel/yt_id1': {'url': 'yt_id1_url'},
-            'yt_id1_url': {'entries': ({'id': 'yt_id8', 'title': 'title6'},)}}
+            'https://www.youtube.com/channel/yt_id1/videos':
+                {'entries': ({'id': 'yt_id8', 'title': 'title6'},)}}
         self.subs.update(
             (), last_video=0, client=subs.Client(0, self.FakeYoutubeDL(resp)))
         c.execute('select count(*) from videos where sub == 2')
@@ -382,12 +378,10 @@ class TestUpdate(unittest.TestCase):
             'insert into subs_tags (sub, tag) values (?, ?)',
             ((1, 1), (1, 2)))
         resp = {
-            'https://www.youtube.com/channel/yt_id0': {'url': 'yt_id0_url'},
-            'https://www.youtube.com/channel/yt_id1': {'url': 'yt_id1_url'},
-            'yt_id0_url': {'entries': (
+            'https://www.youtube.com/channel/yt_id0/videos': {'entries': (
                 {'id': 'yt_id8', 'title': 'title6'},
                 {'id': 'yt_id9', 'title': 'title7'})},
-            'yt_id1_url': {'entries': ()}}
+            'https://www.youtube.com/channel/yt_id1/videos': {'entries': ()}}
         self.subs.update(
             (), client=subs.Client(0, self.FakeYoutubeDL(resp)))
         c.execute('select video, tag from videos_tags')

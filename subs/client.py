@@ -4,7 +4,7 @@ import youtube_dl
 
 
 class Client(object):
-    CHANNEL_URL = 'https://www.youtube.com/channel/{}'
+    CHANNEL_URL = 'https://www.youtube.com/channel/{}/videos'
     VIDEO_URL = 'https://www.youtube.com/watch?v={}'
 
     class logger(object):
@@ -22,8 +22,7 @@ class Client(object):
         return self._ydl.extract_info(url, download=False)
 
     def channel_entries(self, yt_id: str):
-        url = self.info(self.CHANNEL_URL.format(yt_id))['url']
-        return self.info(url)['entries']
+        return self.info(self.CHANNEL_URL.format(yt_id))['entries']
 
     def upload_date(self, yt_id: str):
         d = self.info(self.VIDEO_URL.format(yt_id))['upload_date']
