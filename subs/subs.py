@@ -86,7 +86,8 @@ List subscriptions using `ls`, videos using `videos`.
     update_parser = sub.add_parser('update')
     update_parser.set_defaults(cmd=Subscriptions.update)
     update_parser.add_argument('items', type=str, nargs='*')
-    update_parser.add_argument('-t', '--threads', type=int)
+    update_parser.add_argument('--threads', type=int)
+    update_parser.add_argument('-t', '--tags', type=str, action='append')
     update_parser.add_argument('-d', '--delay',
         type=float, help='delay between each channel (seconds, floating point)')
     update_parser.add_argument('--cache',
@@ -356,14 +357,21 @@ class Subscriptions(object):
         initial_count = count()
         q = Query('subs')
         args: typing.List[typing.Any] = []
-        q.add_fields('id', 'name', 'yt_id')
+        q.add_fields('subs.id', 'subs.name', 'subs.yt_id')
         q.add_filter('last_update < ?')
         args.append(cache)
+        if tags:
+            q.add_joins(
+                'join (tags, subs_tags)'
+                ' on (subs.id == subs_tags.sub and tags.id == subs_tags.tag)')
+            q.add_filter('(tags.name in ({}))'.format(
+                Query.make_args(len(tags))))
+            args.extend(tags)
         if last_video is not None:
             q.add_filter('(last_video != 0 and last_video >= ?)')
             args.append(now - last_video)
         if items:
-            q.add_filter(f'name in ({Query.make_args(len(items))})')
+            q.add_filter(f'yt_id in ({Query.make_args(len(items))})')
             args.extend(items)
         subs = c.execute(q.query(), args).fetchall()
         if client is None:

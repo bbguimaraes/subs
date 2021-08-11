@@ -369,7 +369,7 @@ class TestUpdate(unittest.TestCase):
         c.execute('select count(*) from videos where sub == 2')
         self.assertEqual(c.fetchone()[0], 3)
 
-    def test_tags(self):
+    def test_update_tags(self):
         c = self.conn.cursor()
         c.executemany(
             'insert into tags (name) values (?)',
@@ -386,6 +386,33 @@ class TestUpdate(unittest.TestCase):
             (), client=subs.Client(0, self.FakeYoutubeDL(resp)))
         c.execute('select video, tag from videos_tags')
         self.assertEqual(c.fetchall(), [(7, 1), (7, 2), (8, 1), (8, 2)])
+
+    def test_tag_filter(self):
+        c = self.conn.cursor()
+        c.executemany(
+            'insert into tags (name) values (?)',
+            (('tag0',), ('tag1',)))
+        c.executemany(
+            'insert into subs_tags (sub, tag) values (?, ?)',
+            ((1, 1), (2, 2)))
+        resp = {
+            'https://www.youtube.com/channel/yt_id0/videos': {'entries': (
+                {'id': 'yt_id8', 'title': 'title6'},
+                {'id': 'yt_id9', 'title': 'title7'})},
+            'https://www.youtube.com/channel/yt_id1/videos': {'entries': (
+                {'id': 'yt_id10', 'title': 'title8'},
+                {'id': 'yt_id11', 'title': 'title9'})}}
+        self.subs.update(
+            (), client=subs.Client(0, self.FakeYoutubeDL(resp)), tags=('tag0',))
+        c.execute(
+            'select sub, count(*) from videos group by sub order by sub')
+        self.assertEqual(c.fetchall(), [(1, 6), (2, 2)])
+        self.subs.update(
+            (), client=subs.Client(0, self.FakeYoutubeDL(resp)),
+            tags=('tag0', 'tag1'))
+        c.execute(
+            'select sub, count(*) from videos group by sub order by sub')
+        self.assertEqual(c.fetchall(), [(1, 6), (2, 4)])
 
 
 class TestTagVideo(unittest.TestCase):
