@@ -3,7 +3,13 @@ import sqlite3
 import typing
 
 def _fetch(client, l):
-    return (*l[:-1], client.channel_entries(l[-1]))
+    yt_id, name = l[-1], l[-2]
+    try:
+        entries = client.channel_entries(yt_id)
+    except youtube_dl.utils.DownloadError as ex:
+        print(f'failed to fetch {name}:', file=sys.stderr)
+        raise ex
+    return (*l[:-1], entries)
 
 def _remove_duplicates(l: typing.Collection[dict]):
     ret = []
