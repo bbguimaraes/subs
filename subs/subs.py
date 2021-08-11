@@ -7,6 +7,7 @@ import operator
 import os
 import sqlite3
 import sys
+import time
 import typing
 import urllib.parse
 import xml.etree.ElementTree
@@ -86,6 +87,8 @@ List subscriptions using `ls`, videos using `videos`.
     update_parser.set_defaults(cmd=Subscriptions.update)
     update_parser.add_argument('items', type=str, nargs='*')
     update_parser.add_argument('-t', '--threads', type=int)
+    update_parser.add_argument('-d', '--delay',
+        type=float, help='delay between each channel (seconds, floating point)')
     update_parser.add_argument('--cache',
         type=int, metavar='s', help='''\
 only update subscriptions that were last fetched `s` seconds ago or earlier
@@ -343,8 +346,9 @@ class Subscriptions(object):
 
     def update(
             self, items: typing.Collection[str],
-            threads: int=None, cache: int=None, last_video: int=None,
-            client=None):
+            tags: typing.Collection[str]=None,
+            threads: int=None, cache: int=None, delay: float=0.0,
+            last_video: int=None, client=None):
         now = int(self._now().timestamp())
         cache = now - (cache if cache is not None else 24 * 60 * 60)
         c = self._conn.cursor()
@@ -365,7 +369,7 @@ class Subscriptions(object):
         if client is None:
             client = Client(self._verbose)
         with multiprocessing.dummy.Pool(threads or 1) as pool:
-            for sub_id, name, videos in update.fetch(client, pool, subs):
+            for sub_id, name, videos in update.fetch(client, pool, delay, subs):
                 self._log('updating', name)
                 self._log('found', len(videos), 'videos')
                 if videos:
@@ -375,6 +379,8 @@ class Subscriptions(object):
                         self._add_video(c, sub_id, vid, title)
                 self._update_sub(c, sub_id, now, now if videos else None)
                 c.execute('commit')
+                if delay:
+                    time.sleep(delay)
         for _ in c: pass
         self._log(f'{count() - initial_count} new videos added after @{cache}')
 
