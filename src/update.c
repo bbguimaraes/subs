@@ -1,0 +1,121 @@
+#include "subs.h"
+
+#include <stdint.h>
+#include <stdlib.h>
+
+#include "buffer.h"
+#include "def.h"
+#include "http.h"
+#include "log.h"
+#include "update.h"
+
+static void build_query_common(struct buffer *b) {
+    --b->n, buffer_append_str(b, " from subs where disabled == 0");
+}
+
+static bool count_subs(sqlite3 *db, struct buffer *b, size_t *p) {
+    buffer_append_str(b, "select count(*)");
+    build_query_common(b);
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, b->p, (int)b->n, 0, &stmt, NULL);
+    if(!stmt)
+        return false;
+    for(;;)
+        switch(sqlite3_step(stmt)) {
+        case SQLITE_BUSY: continue;
+        case SQLITE_DONE: assert(false);
+        case SQLITE_ROW:
+            *p = (size_t)sqlite3_column_int(stmt, 0);
+            return sqlite3_finalize(stmt) == SQLITE_OK;
+        }
+}
+
+static bool count_videos(sqlite3 *db, size_t *p) {
+    const char sql[] = "select count(*) from videos";
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
+    if(!stmt)
+        return false;
+    for(;;)
+        switch(sqlite3_step(stmt)) {
+        case SQLITE_BUSY: continue;
+        case SQLITE_DONE: assert(false);
+        case SQLITE_ROW:
+            *p = (size_t)sqlite3_column_int(stmt, 0);
+            return sqlite3_finalize(stmt) == SQLITE_OK;
+        }
+}
+
+static bool report(sqlite3 *db, size_t initial_count) {
+    size_t final_count = 0;
+    if(!count_videos(db, &final_count))
+        return false;
+    assert(final_count >= initial_count);
+    fprintf(
+        stderr, "added %zu new video(s) in total\n",
+        final_count - initial_count);
+    return true;
+}
+
+bool subs_update(
+    const struct subs *s, const struct http_client *http, u32 flags)
+{
+    const bool verbose = s->log_level;
+    sqlite3 *const db = s->db;
+    bool ret = false;
+    size_t subs_count = 0, videos_count = 0;
+    struct buffer sql = {0};
+    if(verbose) {
+        if(!count_subs(db, &sql, &subs_count))
+            goto e0;
+        if(!count_videos(db, &videos_count))
+            goto e0;
+    }
+    sql.n = 0;
+    buffer_append_str(&sql, "select id, ext_id, type, name");
+    build_query_common(&sql);
+    --sql.n, buffer_append_str(&sql, " order by id");
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, sql.p, (int)sql.n, 0, &stmt, NULL);
+    if(!stmt)
+        goto e0;
+    struct buffer b = {0};
+    for(size_t i = 0;; ++i) {
+        switch(sqlite3_step(stmt)) {
+        case SQLITE_BUSY: continue;
+        case SQLITE_ROW: break;
+        case SQLITE_DONE: ret = true; /* fallthrough */
+        default: goto e1;
+        }
+        const int id = sqlite3_column_int(stmt, 0);
+        if(!id)
+            continue;
+        const char *const ext_id = (const char*)sqlite3_column_text(stmt, 1);
+        const int type = sqlite3_column_int(stmt, 2);
+        if(verbose)
+            fprintf(
+                stderr, "[%zd/%zd] processing %d %s\n",
+                i, subs_count, id, sqlite3_column_text(stmt, 3));
+        switch(type) {
+        case SUBS_LBRY:
+            if(!update_lbry(s, http, &b, flags, id, ext_id))
+                goto e1;
+            break;
+        case SUBS_YOUTUBE:
+            // TODO
+            break;
+        default:
+            log_err("%s: unsupported type: %d\n", __func__, type);
+            goto e1;
+        }
+        b.n = 0;
+    }
+e1:
+    ret = sqlite3_finalize(stmt) == SQLITE_OK && ret;
+    free(b.p);
+e0:
+    free(sql.p);
+    if(verbose && !report(db, videos_count))
+        ret = false;
+    return ret;
+}
