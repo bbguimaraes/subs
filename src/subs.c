@@ -375,10 +375,14 @@ end:
 bool subs_exec(struct subs *s, int argc, char **argv) {
     if(!s->db)
         return true;
-    if(!argc || strcmp(*argv, "ls") == 0)
+    if(!argc)
         return subs_list(s, stdout);
-    if(!argc || strcmp(*argv, "videos") == 0)
-        return subs_list_videos(s, stdout);
+    if(strcmp(*argv, "ls") == 0)
+        return check_argc("ls", --argc, 0)
+            && subs_list(s, stdout);
+    if(strcmp(*argv, "videos") == 0)
+        return check_argc("videos", --argc, 0)
+            && subs_list_videos(s, stdout);
     if(strcmp(*argv, "add") == 0) {
         --argc, ++argv;
         enum subs_type t = 0;
