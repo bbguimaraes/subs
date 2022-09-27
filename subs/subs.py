@@ -342,7 +342,7 @@ class Subscriptions(object):
 
     def add(self, yt_id: str, name: str):
         self._conn.cursor().execute(
-            'insert into subs (yt_id, name) values (?, ?)',
+            'insert into subs (yt_id, name, type) values (?, ?, 2)',
             (yt_id, name))
 
     def update(
@@ -358,7 +358,7 @@ class Subscriptions(object):
         q = Query('subs')
         args: typing.List[typing.Any] = []
         q.add_fields('subs.id', 'subs.name', 'subs.yt_id')
-        q.add_filter('last_update < ?')
+        q.add_filter('type == 2 and last_update < ?')
         args.append(cache)
         if tags:
             q.add_joins(
