@@ -28,8 +28,8 @@ struct subs {
     sqlite3 *db;
     lua_State *L;
     uint32_t log_level;
-    const char *db_path;
     const char *url;
+    char db_path[SUBS_MAX_PATH];
 };
 
 const char *subs_type_name(enum subs_type type);
