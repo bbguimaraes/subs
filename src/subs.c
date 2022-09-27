@@ -35,7 +35,8 @@ static void usage(void) {
 "    watched [-r|--remove] ID\n"
 "                    Mark videos as watched (`-r` to unmark)\n"
 "    update [OPTIONS]\n"
-"                    Fetch new videos from subscriptions.\n",
+"                    Fetch new videos from subscriptions.\n"
+"    tui             Start curses terminal interface.\n",
         PROG_NAME);
 }
 
@@ -132,12 +133,20 @@ bool subs_init(struct subs *s) {
     sqlite3 *const db = db_init(db_path);
     if(!db)
         return false;
+    lua_State *const L = subs_lua_init(s);
+    if(!L)
+        goto e0;
     s->db = db;
+    s->L = L;
     if(db_path != s->db_path)
         strcpy(s->db_path, db_path);
     if(!s->url)
         s->url = "localhost:5279";
     return true;
+e0:
+    if(sqlite3_close(db) != SQLITE_OK)
+        LOG_ERR("failed to close sqlite database\n", 0);
+    return false;
 }
 
 static bool init_from_env(struct subs *s) {
@@ -604,6 +613,9 @@ bool subs_exec(struct subs *s, int argc, char **argv) {
     if(argc && strcmp(argv[0], "lua") == 0)
         return check_argc("lua", --argc, 1)
             && subs_lua(s, *++argv);
+    if(strcmp(*argv, "tui") == 0)
+        return check_argc("tui", --argc, 0)
+            && subs_start_tui(s);
     log_err("invalid command: %s\n", *argv);
     return false;
 }
