@@ -11,7 +11,7 @@ static bool step_stmt_once(sqlite3_stmt *stmt);
 static bool write_stmt(
     sqlite3_stmt *stmt, FILE *f, void fmt(sqlite3_stmt*, FILE*));
 void db_sqlite_init(void);
-bool db_init(sqlite3 **db, const char *path);
+sqlite3 *db_init(const char *path);
 
 static inline bool step_stmt_once(sqlite3_stmt *stmt) {
     for(;;)

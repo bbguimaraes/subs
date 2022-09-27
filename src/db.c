@@ -11,10 +11,10 @@ void db_sqlite_init(void) {
     sqlite3_config(SQLITE_CONFIG_LOG, sqlite_log, NULL);
 }
 
-bool db_init(sqlite3 **db_p, const char *path) {
-    sqlite3 *db = NULL;
-    if(sqlite3_open(path, &db) != SQLITE_OK)
-        return false;
+sqlite3 *db_init(const char *path) {
+    sqlite3 *ret = NULL;
+    if(sqlite3_open(path, &ret) != SQLITE_OK)
+        return NULL;
     const char *const tables =
         "create table if not exists subs ("
             "id integer primary key autoincrement not null,"
@@ -66,8 +66,10 @@ bool db_init(sqlite3 **db_p, const char *path) {
             " on videos_tags (video);"
         " create index if not exists videos_tags_tag"
             " on videos_tags (tag);";
-    if(sqlite3_exec(db, tables, NULL, NULL, NULL) != SQLITE_OK)
+    if(sqlite3_exec(ret, tables, NULL, NULL, NULL) != SQLITE_OK) {
+        if(sqlite3_close(ret) != SQLITE_OK)
+            LOG_ERR("failed to close sqlite database\n", 0);
         return false;
-    *db_p = db;
-    return true;
+    }
+    return ret;
 }
