@@ -26,7 +26,12 @@ static const struct subs *from_state(lua_State *L) {
 }
 
 static int type(lua_State *L) {
-    lua_pushstring(L, subs_type_name(lua_tointeger(L, 1)));
+    const enum subs_type t = lua_tointeger(L, 1);
+    if(t <= 0 || SUBS_TYPE_MAX <= t) {
+        lua_pushfstring(L, "invalid type: %d", t);
+        return lua_error(L);
+    }
+    lua_pushstring(L, subs_type_name(t));
     return 1;
 }
 

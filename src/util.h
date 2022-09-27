@@ -19,6 +19,7 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
 #define ARRAY_END(x) ((x) + ARRAY_SIZE((x)))
+#define IN_ARRAY(x, p, n) ((p) <= (x) && (x) < ((p) + (n)))
 #define FOR_EACH_ARRAY(type, var, array) \
     for(type *var = array; var != (array) + ARRAY_SIZE(array); ++var)
 #define FOR_EACH(type, var, init) for(type *var = (init); *var; ++var)
