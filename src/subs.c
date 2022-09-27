@@ -27,7 +27,8 @@ static void usage(void) {
 "    ls              List subscriptions.\n"
 "    videos          List videos.\n"
 "    add NAME ID     Add a subscription.\n"
-"    watched ID      Mark videos as watched\n"
+"    watched [-r|--remove] ID\n"
+"                    Mark videos as watched (`-r` to unmark)\n"
 "    update [OPTIONS]\n"
 "                    Fetch new videos from subscriptions.\n",
         PROG_NAME);
@@ -303,14 +304,15 @@ end:
     return ret;
 }
 
-bool subs_watched(const struct subs *s, i64 id) {
-    const char sql[] = "update videos set watched = 1 where id = ?";
+bool subs_set_watched(const struct subs *s, i64 id, bool b) {
+    const char sql[] = "update videos set watched = ? where id = ?";
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(s->db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
     if(!stmt)
         return false;
     const bool ret =
-        sqlite3_bind_int64(stmt, 1, id) == SQLITE_OK
+        sqlite3_bind_int64(stmt, 1, b) == SQLITE_OK
+        && sqlite3_bind_int64(stmt, 2, id) == SQLITE_OK
         && step_stmt_once(stmt);
     if(ret && s->log_level)
         fprintf(stderr, "watched video: %lld\n", (long long)id);
@@ -318,10 +320,14 @@ bool subs_watched(const struct subs *s, i64 id) {
 }
 
 static bool cmd_watched(struct subs *s, char **argv) {
-    assert(*argv);
+    bool b = true;
+    if(strcmp(*argv, "-r") == 0 || strcmp(*argv, "--remove") == 0)
+        b = false, ++argv;
+    if(!*argv)
+        return log_err("watched: at least one argument required\n"), false;
     do {
         const i64 id = parse_i64(*argv);
-        if(id == -1 || !subs_watched(s, id))
+        if(id == -1 || !subs_set_watched(s, id, b))
             return false;
     } while(*++argv);
     return true;

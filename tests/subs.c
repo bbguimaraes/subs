@@ -123,8 +123,10 @@ static bool watched(void) {
         && subs_add_video(&s, 1, 1630796966, "claim_id0", "v0")
         && subs_add_video(&s, 1, 1630795115, "claim_id1", "v1")
         && subs_add_video(&s, 2, 1630795015, "claim_id2", "v2")
-        && subs_watched(&s, 2)
-        && subs_watched(&s, 3)
+        && subs_set_watched(&s, 2, true)
+        && subs_set_watched(&s, 2, false)
+        && subs_set_watched(&s, 2, true)
+        && subs_set_watched(&s, 3, true)
     ))
         goto end;
     FILE *const tmp = tmpfile();
