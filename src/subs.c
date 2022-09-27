@@ -21,6 +21,7 @@ static void usage(void) {
 "    -v              Increase previous log level, can appear multiple\n"
 "                    times.\n"
 "    --log-level N   Set log level to `N`.\n"
+"    -f, --file DB   Use database file `DB`, default: $XDG_DATA_HOME/subs/db.\n"
 "\n"
 "Commands:\n"
 "    db SQL          Execute database query\n"
@@ -120,18 +121,20 @@ sqlite3 *subs_new_db_connection(const struct subs *s) {
 }
 
 static bool init_from_env(struct subs *s);
+static const char *find_db(const char *path, char v[static SUBS_MAX_PATH]);
 
 bool subs_init(struct subs *s) {
     if(!init_from_env(s))
         return false;
-    const char *const db_path =
-        s->db_path ? s->db_path : "file:subs?mode=memory&cache=shared";
+    const char *const db_path = find_db(s->db_path, (char[SUBS_MAX_PATH]){0});
+    if(!db_path)
+        return false;
     sqlite3 *const db = db_init(db_path);
     if(!db)
         return false;
     s->db = db;
-    if(!s->db_path)
-        s->db_path = db_path;
+    if(db_path != s->db_path)
+        strcpy(s->db_path, db_path);
     if(!s->url)
         s->url = "localhost:5279";
     return true;
@@ -141,6 +144,28 @@ static bool init_from_env(struct subs *s) {
     if(!parse_log_level(getenv("SUBS_LOG_LEVEL"), &s->log_level))
         return false;
     return true;
+}
+
+static const char *find_db(const char *path, char v[static SUBS_MAX_PATH]) {
+    if(*path)
+        return path;
+    const char *const base = "/subs/db";
+    const char *const home_base = "/.local/share/subs/db";
+    const char *const xdg = getenv("XDG_DATA_HOME");
+    if(xdg) {
+        if(!join_path(v, 2, xdg, base))
+            return false;
+    } else {
+        const char *const home = getenv("HOME");
+        if(!home)
+            goto end;
+        if(!join_path(v, 2, home, home_base))
+            return false;
+    }
+    if(file_exists(v))
+        return v;
+end:
+    return "file:subs?mode=memory&cache=shared";
 }
 
 bool subs_init_from_argv(struct subs *s, int *argc_p, char ***argv_p) {
@@ -164,7 +189,17 @@ bool subs_init_from_argv(struct subs *s, int *argc_p, char ***argv_p) {
             break;
         switch(c) {
         case '?': break;
-        case 'f': s->db_path = optarg; continue;
+        case 'f': {
+            const size_t n = strlen(optarg);
+            if(SUBS_MAX_PATH <= n) {
+                log_err(
+                    "database path too long (%zu >= %zu): %s\n",
+                    n, SUBS_MAX_PATH, optarg);
+                goto end;
+            }
+            memcpy(s->db_path, optarg, n + 1);
+            continue;
+        }
         case 'h': cmd = CMD_HELP; continue;
         case 'v': ++log_level; continue;
         case LOG_LEVEL:
