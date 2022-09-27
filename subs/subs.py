@@ -14,6 +14,7 @@ import youtube_dl
 
 from client import Client
 from query import Query
+import update
 
 
 VALID_SUB_FIELDS = {'yt_id', 'name'}
@@ -363,16 +364,12 @@ class Subscriptions(object):
         subs = c.execute(q.query(), args).fetchall()
         if client is None:
             client = Client(self._verbose)
-        fetch = lambda l: (*l[:-1], client.channel_entries(l[-1]))
         with multiprocessing.dummy.Pool(threads or 1) as pool:
-            for sub_id, name, videos in pool.imap_unordered(fetch, subs):
+            for sub_id, name, videos in update.fetch(client, pool, subs):
                 self._log('updating', name)
                 self._log('found', len(videos), 'videos')
                 if videos:
-                    videos = map(operator.itemgetter('id', 'title'), videos)
-                    videos = Subscriptions._remove_duplicates(videos)
-                    videos = list(filter(
-                        lambda x: not self._video_exists(c, x[0]), videos))
+                    videos = update.update(c, videos)
                     for vid, title in reversed(videos):
                         self._log('adding video', vid, '-', title)
                         self._add_video(c, sub_id, vid, title)
@@ -380,23 +377,6 @@ class Subscriptions(object):
                 c.execute('commit')
         for _ in c: pass
         self._log(f'{count() - initial_count} new videos added after @{cache}')
-
-    @staticmethod
-    def _remove_duplicates(l: typing.Collection[dict]):
-        ret = []
-        seen: typing.Set[str] = set()
-        for x in l:
-            yt_id, *_ = x
-            if yt_id in seen:
-                continue
-            seen.add(yt_id)
-            ret.append(x)
-        return ret
-
-    def _video_exists(self, c: sqlite3.Cursor, yt_id: str):
-        return bool(c
-            .execute('select 1 from videos where yt_id == ?', (yt_id,))
-            .fetchall())
 
     def _add_video(
             self, c: sqlite3.Cursor, sub_id: str, yt_id: str, title: str):
