@@ -13,6 +13,7 @@ static bool write_stmt(
     sqlite3_stmt *stmt, FILE *f, void fmt(sqlite3_stmt*, FILE*));
 bool db_sqlite_init(void);
 sqlite3 *db_init(const char *path);
+int exists_query(sqlite3 *db, const char *sql, int len, const int *param);
 
 static inline bool step_stmt_once(sqlite3_stmt *stmt) {
     for(;;)

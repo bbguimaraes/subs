@@ -24,7 +24,9 @@ subs: \
 	src/subs.o \
 	src/update.o \
 	src/update_lbry.o \
-	src/util.o
+	src/update_youtube.o \
+	src/util.o \
+	src/unix.o
 	$(LINK.C) -o $@ $^ $(LDLIBS)
 $(TESTS): CPPFLAGS := \
 	$(CPPFLAGS) \
@@ -45,7 +47,9 @@ tests/subs: \
 	src/subs.o \
 	src/update.o \
 	src/update_lbry.o \
+	src/update_youtube.o \
 	src/util.o \
+	src/unix.o \
 	tests/common.o
 tests/util: \
 	src/log.o \

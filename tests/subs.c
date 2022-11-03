@@ -321,7 +321,7 @@ static bool update(void) {
         subs_init(&s)
         && subs_add(&s, SUBS_LBRY, "name0", "id0")
         && subs_add(&s, SUBS_LBRY, "name1", "id1")
-        && subs_add(&s, SUBS_YOUTUBE, "name2", "id0")
+        /*TODO&& subs_add(&s, SUBS_YOUTUBE, "name2", "id0")*/
         && subs_update(&s, &http, 0)
     ))
         goto end;

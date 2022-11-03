@@ -84,3 +84,24 @@ sqlite3 *db_init(const char *path) {
     }
     return ret;
 }
+
+int exists_query(sqlite3 *db, const char *sql, int len, const int *param) {
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, sql, len, 0, &stmt, NULL);
+    if(!stmt)
+        return -1;
+    int ret = -1;
+    if(param && sqlite3_bind_int(stmt, 1, *param) != SQLITE_OK)
+        goto end;
+    for(;;)
+        switch(sqlite3_step(stmt)) {
+        case SQLITE_BUSY: continue;
+        case SQLITE_DONE: ret = 0; goto end;
+        case SQLITE_ROW: ret = 1; goto end;
+        default: ret = -1; goto end;
+        }
+end:
+    if(sqlite3_finalize(stmt) != SQLITE_OK)
+        return -1;
+    return ret;
+}
