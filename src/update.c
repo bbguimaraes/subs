@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "buffer.h"
+#include "db.h"
 #include "def.h"
 #include "http.h"
 #include "log.h"
@@ -46,6 +47,16 @@ static bool count_videos(sqlite3 *db, size_t *p) {
         }
 }
 
+static int has_youtube(sqlite3 *db) {
+    const char sql[] =
+        "select 1 from videos"
+        " join subs on videos.sub == subs.id"
+        " where subs.type == ?"
+        " limit 1";
+    const int param = SUBS_YOUTUBE;
+    return exists_query(db, sql, sizeof(sql) - 1, &param);
+}
+
 static bool report(sqlite3 *db, size_t initial_count) {
     size_t final_count = 0;
     if(!count_videos(db, &final_count))
@@ -71,6 +82,15 @@ bool subs_update(
         if(!count_videos(db, &videos_count))
             goto e0;
     }
+    struct update_youtube youtube = {0};
+    const int needs_youtube = has_youtube(db);
+    switch(needs_youtube) {
+    case -1:
+        goto e1;
+    case 1:
+        if(!update_youtube_init(&youtube))
+            goto e1;
+    }
     sql.n = 0;
     buffer_append_str(&sql, "select id, ext_id, type, name");
     build_query_common(&sql);
@@ -78,14 +98,14 @@ bool subs_update(
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(db, sql.p, (int)sql.n, 0, &stmt, NULL);
     if(!stmt)
-        goto e0;
+        goto e1;
     struct buffer b = {0};
     for(size_t i = 0;; ++i) {
         switch(sqlite3_step(stmt)) {
         case SQLITE_BUSY: continue;
         case SQLITE_ROW: break;
         case SQLITE_DONE: ret = true; /* fallthrough */
-        default: goto e1;
+        default: goto e2;
         }
         const int id = sqlite3_column_int(stmt, 0);
         if(!id)
@@ -99,20 +119,24 @@ bool subs_update(
         switch(type) {
         case SUBS_LBRY:
             if(!update_lbry(s, http, &b, flags, id, ext_id))
-                goto e1;
+                goto e2;
             break;
         case SUBS_YOUTUBE:
-            // TODO
+            if(!update_youtube(s, &youtube, &b, flags, id, ext_id))
+                goto e2;
             break;
         default:
             log_err("%s: unsupported type: %d\n", __func__, type);
-            goto e1;
+            goto e2;
         }
         b.n = 0;
     }
-e1:
+e2:
     ret = sqlite3_finalize(stmt) == SQLITE_OK && ret;
     free(b.p);
+e1:
+    if(needs_youtube)
+        ret = update_youtube_destroy(&youtube) && ret;
 e0:
     free(sql.p);
     if(verbose && !report(db, videos_count))
