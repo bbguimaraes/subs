@@ -16,10 +16,14 @@ static void clear_selection(struct videos *v) {
     v->flags = (u8)(v->flags & ~VIDEOS_UNTAGGED);
 }
 
-static void render_border(struct list *l, int n) {
+static void render_border(struct list *l, int n, struct buffer search) {
     int x = 0;
     x -= (int)int_digits(n) + 3;
     list_write_title(l, x, " %d ", n);
+    if(!search.n)
+        return;
+    x -= (int)search.n + 3;
+    list_write_title(l, x, " /%s ", (const char*)search.p);
 }
 
 static bool item_watched(const char *s) {
@@ -134,6 +138,19 @@ end:
     return true;
 }
 
+static void next_search(struct videos *v) {
+    struct list *const l = &v->list;
+    const bool inv = *(const char*)v->search.p == '!';
+    const char *const search = (const char*)v->search.p + inv;
+    const char *const *const lines = (const char *const*)l->lines;
+    const int n = l->n;
+    for(int i = l->i + 1; i != n; ++i)
+        if((bool)strstr(lines[i], search) != inv) {
+            list_move(l, i);
+            return;
+        }
+}
+
 static bool next_unwatched(struct videos *v) {
     struct list *l = &v->list;
     const char *const *const lines = (const char *const*)l->lines;
@@ -192,6 +209,51 @@ err0:
     return ret;
 }
 
+static int input_lua(lua_State *L, int c);
+
+static bool input(struct videos *v, int c) {
+    switch(c) {
+    case '/':
+        free(v->search.p);
+        v->search = (struct buffer){0};
+        v->flags |= VIDEOS_SEARCH_INPUT;
+        list_box(&v->list);
+        render_border(&v->list, v->n, v->search);
+        break;
+    case 'H':
+        list_move(&v->list, v->list.offset);
+        break;
+    case 'L':
+        list_move(&v->list, v->list.offset + v->list.height - 3);
+        break;
+    case 'M':
+        list_move(&v->list, v->list.offset + (v->list.height - 2) / 2 - 1);
+        break;
+    case 'N': if(!toggle_item_watched(v)) return false; break;
+    case 'n':
+        if(v->search.n)
+            next_search(v);
+        else if(!next_unwatched(v))
+            return true;
+        break;
+    case 'o':
+        if(!open_item(v->s->db, v->s->L, v->items[v->list.i]))
+            return false;
+        break;
+    case 'r': if(!reload_item(v)) return false; break;
+    default:
+        if(list_input(&v->list, c))
+            break;
+        switch(input_lua(v->s->L, c)) {
+        case ERR: return false;
+        case 0: return true;
+        }
+        break;
+    }
+    list_refresh(&v->list);
+    return true;
+}
+
 static int input_lua(lua_State *L, int c) {
     const int top = lua_gettop(L);
     int ret = 0;
@@ -204,6 +266,30 @@ static int input_lua(lua_State *L, int c) {
 end:
     lua_settop(L, top);
     return ret;
+}
+
+static bool input_search(struct videos *v, int c) {
+    struct buffer *const b = &v->search;
+    switch(c) {
+    case ERR:
+        return false;
+    case '\n':
+        if(b->n)
+            next_search(v);
+        list_box(&v->list);
+        render_border(&v->list, v->n, *b);
+        v->flags = (u8)(
+            (unsigned)v->flags & ~(unsigned)VIDEOS_SEARCH_INPUT);
+        break;
+    default:
+        if(b->n)
+            --b->n;
+        buffer_append_str(b, (char[]){(char)c, 0});
+        render_border(&v->list, v->n, *b);
+        break;
+    }
+    list_refresh(&v->list);
+    return true;
 }
 
 static void build_query_common(
@@ -265,6 +351,7 @@ static void build_query_list(
 void videos_destroy(struct videos *v) {
     list_destroy(&v->list);
     free(v->items);
+    free(v->search.p);
 }
 
 void videos_toggle_watched(struct videos *v) {
@@ -313,25 +400,10 @@ bool videos_enter(struct window *w) {
 
 bool videos_input(struct window *w, int c) {
     struct videos *const v = w->data;
-    switch(c) {
-    case 'N': if(!toggle_item_watched(v)) return false; break;
-    case 'n': if(!next_unwatched(v)) return true; break;
-    case 'o':
-        if(!open_item(v->s->db, v->s->L, v->items[v->list.i]))
-            return false;
-        break;
-    case 'r': if(!reload_item(v)) return false; break;
-    default:
-        if(list_input(&v->list, c))
-            break;
-        switch(input_lua(v->s->L, c)) {
-        case ERR: return false;
-        case 0: return true;
-        }
-        break;
-    }
-    list_refresh(&v->list);
-    return true;
+    if(v->flags & VIDEOS_SEARCH_INPUT)
+        return input_search(v, c);
+    else
+        return input(v, c);
 }
 
 bool videos_resize(struct videos *v) {
@@ -339,7 +411,7 @@ bool videos_resize(struct videos *v) {
         list_resize(&v->list, NULL, v->x, 0, v->width, LINES);
     else if(!list_init(&v->list, NULL, 0, NULL, v->x, v->y, v->width, LINES))
         return false;
-    render_border(&v->list, v->n);
+    render_border(&v->list, v->n, v->search);
     list_refresh(&v->list);
     return true;
 }
@@ -373,7 +445,7 @@ bool videos_reload(struct videos *v) {
         goto err2;
     if(!list_init(&v->list, NULL, n, lines, v->x, v->y, v->width, LINES))
         goto err2;
-    render_border(&v->list, n);
+    render_border(&v->list, n, v->search);
     free(sql.p);
     v->n = n;
     v->items = items;
