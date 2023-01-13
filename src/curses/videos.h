@@ -7,19 +7,22 @@
 #include <sqlite3.h>
 
 #include "../def.h"
+#include "../buffer.h"
 
 #include "const.h"
 #include "window/list.h"
+#include "search.h"
 
 enum videos_flags {
-    VIDEOS_ACTIVE      = 1u << 0,
-    VIDEOS_UNTAGGED    = 1u << 1,
+    VIDEOS_ACTIVE        = 1u << 0,
+    VIDEOS_UNTAGGED      = 1u << 1,
 };
 
 struct videos {
     struct subs_curses *s;
     int *items;
     struct list list;
+    struct search search;
     int n, x, y, width, height, tag, type, sub;
     u8 flags;
 };

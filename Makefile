@@ -20,10 +20,12 @@ subs: \
 	src/buffer.o \
 	src/curses/curses.o \
 	src/curses/lua/lua.o \
+	src/curses/search.o \
 	src/curses/source.o \
 	src/curses/subs.o \
 	src/curses/videos.o \
 	src/curses/window/list.o \
+	src/curses/window/list_search.o \
 	src/curses/window/window.o \
 	src/db.o \
 	src/http.o \
@@ -54,10 +56,12 @@ tests/subs: \
 	src/buffer.o \
 	src/curses/curses.o \
 	src/curses/lua/lua.o \
+	src/curses/search.o \
 	src/curses/source.o \
 	src/curses/subs.o \
 	src/curses/videos.o \
 	src/curses/window/list.o \
+	src/curses/window/list_search.o \
 	src/curses/window/window.o \
 	src/db.o \
 	src/http.o \

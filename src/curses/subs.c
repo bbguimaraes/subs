@@ -8,6 +8,8 @@
 #include "curses.h"
 #include "videos.h"
 
+#include "window/list_search.h"
+
 enum flags {
     UNTAGGED = 1u << 0,
 };

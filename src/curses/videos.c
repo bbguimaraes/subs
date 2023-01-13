@@ -11,6 +11,8 @@
 
 #include "curses.h"
 
+#include "window/list_search.h"
+
 #define FIELDS \
     "select" \
         " videos.id, subs.type, videos.watched," \
@@ -22,18 +24,21 @@ static void clear_selection(struct videos *v) {
     v->flags = (u8)(v->flags & ~VIDEOS_UNTAGGED);
 }
 
-static void render_border(struct list *l) {
+static void render_border(struct list *l, struct videos *v) {
     enum { BAR = 1, SPACE = 1 };
     const int i = l->i, n = l->n, h = l->height - 2 * LIST_BORDER_SIZE;
-    if(!n)
-        return;
-    const int n_pages = n / h, page = i / h;
     int x = -2 * SPACE;
+    const int n_pages = n / h, page = i / h;
     x -= (int)int_digits(n)
         + (int)int_digits(page)
         + (int)int_digits(n_pages)
         + BAR + 2 * SPACE;
     list_write_title(l, x, " %d %d/%d ", n, page, n_pages);
+    if(!search_is_active(&v->search))
+        return;
+    const struct buffer search = v->search.b;
+    x -= (search.n ? (int)search.n - 1 : 0) + BAR + SPACE;
+    list_write_title(l, x, " /%s ", search.p ? (const char*)search.p : "");
 }
 
 static bool item_watched(const char *s) {
@@ -145,7 +150,7 @@ end:
     if(!(sqlite3_finalize(stmt) == SQLITE_OK && ret && reload_item(v)))
         return false;
     list_move(l, l->i + 1);
-    render_border(l);
+    render_border(l, v);
     return true;
 }
 
@@ -159,7 +164,7 @@ static bool next_unwatched(struct videos *v) {
     for(; i != n; ++i)
         if(item_watched(lines[i])) {
             list_move(l, i);
-            render_border(l);
+            render_border(l, v);
             return true;
         }
     return false;
@@ -208,6 +213,68 @@ err0:
     return ret;
 }
 
+static enum subs_curses_key input_lua(lua_State *L, int c);
+
+static enum subs_curses_key input(struct videos *v, int c) {
+    struct list *const l = &v->list;
+    switch(c) {
+    case '/':
+        search_reset(&v->search);
+        list_box(l);
+        render_border(l, v);
+        break;
+    case 'N':
+        if(!l->n)
+            return true;
+        if(!toggle_item_watched(v))
+            return false;
+        break;
+    case 'n':
+        if(!l->n)
+            return true;
+        if(!search_is_empty(&v->search)) {
+            if(list_search_next(&v->search, &v->list))
+                render_border(l, v);
+        } else if(!next_unwatched(v))
+            return true;
+        break;
+    case 'o':
+        if(!l->n)
+            return true;
+        if(!open_item(v->s->db, v->s->L, v->items[l->i]))
+            return false;
+        break;
+    case 'r':
+        if(!l->n)
+            return true;
+        if(!reload_item(v))
+            return false;
+        break;
+    default:
+        switch(list_input(l, c)) {
+        case KEY_ERROR:
+            return false;
+        case KEY_HANDLED:
+            list_box(l);
+            render_border(l, v);
+            break;
+        case KEY_IGNORED:
+            switch(input_lua(v->s->L, c)) {
+            case KEY_ERROR:
+                return false;
+            case KEY_IGNORED:
+                return KEY_IGNORED;
+            case KEY_HANDLED:
+                break;
+            }
+            break;
+        }
+        break;
+    }
+    list_refresh(l);
+    return true;
+}
+
 static enum subs_curses_key input_lua(lua_State *L, int c) {
     const int top = lua_gettop(L);
     enum subs_curses_key ret = KEY_IGNORED;
@@ -220,6 +287,18 @@ static enum subs_curses_key input_lua(lua_State *L, int c) {
         ret = (int)lua_tointeger(L, -1);
 end:
     lua_settop(L, top);
+    return ret;
+}
+
+static enum subs_curses_key input_search(struct videos *v, int c) {
+    struct search *const s = &v->search;
+    struct list *const l = &v->list;
+    const enum subs_curses_key ret = list_search_input(s, l, c);
+    if(ret == KEY_HANDLED) {
+        list_box(l);
+        render_border(l, v);
+        list_refresh(l);
+    }
     return ret;
 }
 
@@ -280,6 +359,7 @@ static void build_query_list(
 void videos_destroy(struct videos *v) {
     list_destroy(&v->list);
     free(v->items);
+    free(v->search.b.p);
 }
 
 void videos_set_untagged(struct videos *v) {
@@ -324,53 +404,10 @@ void videos_redraw(void *data) {
 
 enum subs_curses_key videos_input(void *data, int c) {
     struct videos *const v = data;
-    struct list *const l = &v->list;
-    switch(c) {
-    case 'N':
-        if(!toggle_item_watched(v))
-            return false;
-        break;
-    case 'n':
-        if(!l->n)
-            return true;
-        if(!next_unwatched(v))
-            return true;
-        break;
-    case 'o':
-        if(!l->n)
-            return true;
-        if(!open_item(v->s->db, v->s->L, v->items[l->i]))
-            return false;
-        break;
-    case 'r':
-        if(!l->n)
-            return true;
-        if(!reload_item(v))
-            return false;
-        break;
-    default:
-        switch(list_input(l, c)) {
-        case KEY_ERROR:
-            return false;
-        case KEY_HANDLED:
-            list_box(l);
-            render_border(l);
-            break;
-        case KEY_IGNORED:
-            switch(input_lua(v->s->L, c)) {
-            case KEY_ERROR:
-                return false;
-            case KEY_IGNORED:
-                return KEY_IGNORED;
-            case KEY_HANDLED:
-                break;
-            }
-            break;
-        }
-        break;
-    }
-    list_refresh(l);
-    return true;
+    if(search_is_input_active(&v->search))
+        return input_search(v, c);
+    else
+        return input(v, c);
 }
 
 bool videos_resize(struct videos *v) {
@@ -379,7 +416,7 @@ bool videos_resize(struct videos *v) {
         list_resize(l, NULL, v->x, 0, v->width, LINES);
     else if(!list_init(l, NULL, 0, NULL, v->x, v->y, v->width, LINES))
         return false;
-    render_border(l);
+    render_border(l, v);
     list_refresh(l);
     return true;
 }
@@ -415,7 +452,7 @@ bool videos_reload(struct videos *v) {
         goto err2;
     if(!list_init(l, NULL, n, lines, v->x, v->y, v->width, LINES))
         goto err2;
-    render_border(l);
+    render_border(l, v);
     free(sql.p);
     v->n = n;
     v->items = items;

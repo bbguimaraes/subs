@@ -11,6 +11,8 @@
 #include "subs.h"
 #include "videos.h"
 
+#include "window/list_search.h"
+
 enum { ALL, TAGS, UNTAGGED };
 
 static bool populate(
