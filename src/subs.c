@@ -304,6 +304,30 @@ end:
     return ret;
 }
 
+static bool tag_common(sqlite3 *db, const char *sql, int len, i64 tag, i64 id);
+
+bool subs_tag_sub(const struct subs *s, i64 tag, i64 id) {
+    const char sql[] = "insert into subs_tags (tag, sub) values (?, ?)";
+    return tag_common(s->db, sql, sizeof(sql) - 1, tag, id);
+}
+
+bool subs_tag_video(const struct subs *s, i64 tag, i64 id) {
+    const char sql[] = "insert into subs_videos (tag, video) values (?, ?)";
+    return tag_common(s->db, sql, sizeof(sql) - 1, tag, id);
+}
+
+bool tag_common(sqlite3 *db, const char *sql, int len, i64 tag, i64 id) {
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, sql, len, 0, &stmt, NULL);
+    if(!stmt)
+        return false;
+    const bool ret =
+        sqlite3_bind_int64(stmt, 1, tag) == SQLITE_OK
+        && sqlite3_bind_int64(stmt, 2, id) == SQLITE_OK
+        && step_stmt_once(stmt);
+    return sqlite3_finalize(stmt) == SQLITE_OK && ret;
+}
+
 bool subs_set_watched(const struct subs *s, i64 id, bool b) {
     const char sql[] = "update videos set watched = ? where id = ?";
     sqlite3_stmt *stmt = NULL;
@@ -317,6 +341,25 @@ bool subs_set_watched(const struct subs *s, i64 id, bool b) {
     if(ret && s->log_level)
         fprintf(stderr, "watched video: %lld\n", (long long)id);
     return sqlite3_finalize(stmt) == SQLITE_OK && ret;
+}
+
+static bool cmd_tag(struct subs *s, char **argv) {
+    bool (*f)(const struct subs*, i64, i64) = NULL;
+    if(strcmp(*argv, "subs") == 0)
+        f = subs_tag_sub;
+    else if(strcmp(*argv, "videos") == 0)
+        f = subs_tag_video;
+    else
+        return log_err("invalid tag destination type: %s\n", *argv), false;
+    const i64 tag = parse_i64(*++argv);
+    if(tag == -1)
+        return false;
+    while(*++argv) {
+        const i64 id = parse_i64(*argv);
+        if(id == -1 || !f(s, tag, id))
+            return false;
+    }
+    return true;
 }
 
 static bool cmd_watched(struct subs *s, char **argv) {
@@ -390,6 +433,8 @@ bool subs_exec(struct subs *s, int argc, char **argv) {
             && (t = subs_parse_type(argv[0]))
             && subs_add(s, t, argv[1], argv[2]);
     }
+    if(strcmp(*argv, "tag") == 0)
+        return cmd_tag(s, ++argv);
     if(strcmp(*argv, "watched") == 0)
         return cmd_watched(s, ++argv);
     if(strcmp(*argv, "update") == 0)

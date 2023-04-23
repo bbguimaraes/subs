@@ -46,6 +46,8 @@ bool subs_add(
 bool subs_add_video(
     const struct subs *s,
     int64_t sub, int64_t timestamp, const char *ext_id, const char *title);
+bool subs_tag_sub(const struct subs *s, int64_t tag, int64_t id);
+bool subs_tag_video(const struct subs *s, int64_t tag, int64_t id);
 bool subs_set_watched(const struct subs *s, int64_t id, bool b);
 bool subs_update(
     const struct subs *s, const struct http_client *http, uint32_t flags);
