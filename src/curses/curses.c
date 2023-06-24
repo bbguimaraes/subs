@@ -6,6 +6,9 @@
 
 #include <signal.h>
 
+#include <form.h>
+#include <menu.h>
+
 #include "../log.h"
 #include "../subs.h"
 #include "../unix.h"
@@ -20,6 +23,7 @@
 enum {
     ESC  = 0x1b,
     CTRL = 0x1f,
+    DEL  = 0x7f,
 };
 
 static char log[4096];
@@ -65,6 +69,16 @@ static void cleanup(void) {
     endwin();
 }
 
+static void window_fill(WINDOW *w, chtype c) {
+    int width, height;
+    getmaxyx(w, height, width);
+    for(int y = 0; y != height; ++y) {
+        wmove(w, y, 0);
+        for(int x = 0; x != width; ++x)
+            waddch(w, c);
+    }
+}
+
 static bool window_leave(struct subs_curses *s, struct window *w) {
     const ptrdiff_t i = w - s->windows;
     assert(0 <= i && (size_t)i < s->n_windows);
@@ -99,6 +113,137 @@ static bool resize(
         && videos_resize(videos);
 }
 
+static bool menu_nav(WINDOW *w, MENU *m, int c) {
+    switch(c) {
+    case 'h': case KEY_LEFT:  menu_driver(m, REQ_LEFT_ITEM);  break;
+    case 'j': case KEY_DOWN:  menu_driver(m, REQ_DOWN_ITEM);  break;
+    case 'k': case KEY_UP:    menu_driver(m, REQ_UP_ITEM);    break;
+    case 'l': case KEY_RIGHT: menu_driver(m, REQ_RIGHT_ITEM); break;
+    case 'b': case KEY_PPAGE: menu_driver(m, REQ_SCR_UPAGE);  break;
+    case 'f': case KEY_NPAGE: menu_driver(m, REQ_SCR_DPAGE);  break;
+    case 'g': case KEY_HOME:  menu_driver(m, REQ_FIRST_ITEM); break;
+    case 'G': case KEY_END:   menu_driver(m, REQ_LAST_ITEM);  break;
+    default: return false;
+    }
+    wrefresh(w);
+    return true;
+}
+
+static bool form_nav(WINDOW *w, FORM *f, int c) {
+    switch(c) {
+    case KEY_LEFT:
+        form_driver(f, REQ_PREV_CHAR);
+        break;
+    case KEY_RIGHT:
+        form_driver(f, REQ_NEXT_CHAR);
+        break;
+    case DEL:
+        form_driver(f, REQ_PREV_CHAR);
+        /* fallthrough */
+    case KEY_DC:
+        form_driver(f, REQ_DEL_CHAR);
+        break;
+    case '\t':
+    case KEY_DOWN:
+        form_driver(f, REQ_NEXT_FIELD);
+        form_driver(f, REQ_END_LINE);
+        break;
+    case KEY_UP:
+        form_driver(f, REQ_PREV_FIELD);
+        form_driver(f, REQ_END_LINE);
+        break;
+    default:
+        return false;
+    }
+    wrefresh(w);
+    return true;
+}
+
+static void cmd_form(WINDOW *w) {
+    FIELD *fields[] = {
+        new_field(1, 10, 0, 8, 0, 0),
+        new_field(1, 10, 2, 8, 0, 0),
+        NULL,
+    };
+    FOR_EACH(FIELD*, x, fields) {
+        set_field_back(*x, A_UNDERLINE);
+        field_opts_off(*x, O_AUTOSKIP);
+    }
+    set_field_type(fields[0], TYPE_ALPHA, 0);
+    FORM *const f = new_form(fields);
+    int width, height;
+    getmaxyx(w, height, width);
+    set_form_win(f, w);
+    set_form_sub(f, derwin(w, height - 2, width - 2, 1, 1));
+    post_form(f);
+    wrefresh(w);
+    mvwprintw(w, 3, 1, "field1: ");
+    mvwprintw(w, 1, 1, "field0: ");
+    wrefresh(w);
+    int c;
+    while((c = getch()), c != ERR && c != '\n') {
+        if(form_nav(w, f, c))
+            continue;
+        form_driver(f, c);
+        wrefresh(w);
+    }
+    unpost_form(f);
+    free_form(f);
+    FOR_EACH(FIELD*, x, fields)
+        free_field(*x);
+    window_fill(w, ' ');
+    box(w, 0, 0);
+    curs_set(1);
+    wrefresh(w);
+}
+
+static void cmd_menu(WINDOW *w) {
+    const int n = 100;
+    ITEM **const items = calloc((size_t)n, sizeof(*items));
+    char name[100][3] = {0};
+    for(int i = 0; i != n; ++i) {
+        name[i][0] = '0' + (char)(i / 10);
+        name[i][1] = '0' + (char)(i % 10);
+        items[i] = new_item(name[i], name[i]);
+        if(i & 1)
+            item_opts_off(items[i], O_SELECTABLE);
+    }
+    MENU *const m = new_menu(items);
+    int width, height, x = getcurx(w), y = getcury(w);
+    getmaxyx(w, height, width);
+    set_menu_win(m, w);
+    set_menu_sub(m, derwin(w, height - 2, width - 2, 1, 1));
+    set_menu_format(m, 0, 4);
+    set_menu_opts(m, O_SHOWDESC | O_SHOWMATCH | O_NONCYCLIC);
+    init_pair(2, COLOR_GREEN, COLOR_BLACK);
+    set_menu_grey(m, COLOR_PAIR(2));
+    post_menu(m);
+    wrefresh(w);
+    int c;
+    while((c = getch()), c != ERR && c != 'q' && c != '\n') {
+        if(menu_nav(w, m, c))
+            continue;
+        switch(c) {
+        case ' ': menu_driver(m, REQ_TOGGLE_ITEM); break;
+        }
+        wrefresh(w);
+    }
+    unpost_menu(m);
+    wmove(w, y, x);
+    if(c == '\n') {
+        wprintw(w, "selected:");
+        for(int i = 0; i != n; ++i)
+            if(item_value(items[i]) == TRUE) {
+                wprintw(w, " ");
+                wprintw(w, name[i]);
+            }
+    }
+    wrefresh(w);
+    free_menu(m);
+    for(int i = 0; i != n; ++i)
+        free_item(items[i]);
+}
+
 static bool process_key(
     struct subs_curses *sc, struct source_bar *source_bar,
     struct subs_bar *subs_bar, struct videos *videos, int c)
@@ -112,10 +257,13 @@ static bool process_key(
         doupdate();
         break;
     case 'z' & CTRL: kill(0, SIGTSTP); break;
+//    case 'F': cmd_form(windows[VIDEOS_IDX].w); break;
+//    case 'M': cmd_menu(windows[VIDEOS_IDX].w); break;
     case 'R':
         return source_bar_reload(source_bar)
             && subs_bar_reload(subs_bar)
             && videos_reload(videos);
+//    case 'V': suspend_tui(); system("vim"); resume_tui(); break;
     case 'W':
         subs_bar_toggle_not_watched(subs_bar);
         videos_toggle_not_watched(videos);
