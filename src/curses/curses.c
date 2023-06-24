@@ -4,11 +4,14 @@
 #include <locale.h>
 #include <signal.h>
 
+#include <signal.h>
+
 #include "../log.h"
 #include "../subs.h"
+#include "../unix.h"
 #include "../util.h"
 
-#include "curses.h"
+#include "input.h"
 #include "lua.h"
 #include "source.h"
 #include "subs.h"
@@ -83,6 +86,10 @@ static bool resize(
     if(!(sc->flags & RESIZED))
         return true;
     sc->flags = (u8)(sc->flags & ~RESIZED);
+    int x, y;
+    if(!get_terminal_size(&x, &y))
+        return false;
+    resizeterm(y, x);
     clear();
     refresh();
     return source_bar_update_count(source_bar)
@@ -92,7 +99,7 @@ static bool resize(
         && videos_resize(videos);
 }
 
-static bool process_input(
+static bool process_key(
     struct subs_curses *sc, struct source_bar *source_bar,
     struct subs_bar *subs_bar, struct videos *videos, int c)
 {
@@ -238,14 +245,29 @@ bool subs_start_tui(const struct subs *s) {
     bool ret = false;
     if(!resize(&sc, &source_bar, &subs_bar, &videos))
         goto end;
-    for(int c; c = getch(), c != ERR && c != ESC && c != 'q';) {
-        if(!process_input(&sc, &source_bar, &subs_bar, &videos, c))
+    window_enter(&sc, &windows[SOURCE_BAR_IDX]);
+    struct input input = {0};
+    if(!init_input(&input))
+        goto end;
+    for(;;) {
+        const struct input_event e = process_input(&input);
+        switch(e.type) {
+        case INPUT_TYPE_QUIT:
+            ret = true; /* fallthrough */
+        case INPUT_TYPE_ERR:
             goto end;
+        case INPUT_TYPE_RESIZE:
+            sc.flags = (u8)(sc.flags | RESIZED);
+            break;
+        case INPUT_TYPE_KEY:
+            if(!process_key(&sc, &source_bar, &subs_bar, &videos, e.key))
+                goto end;
+            break;
+        }
         if(!resize(&sc, &source_bar, &subs_bar, &videos))
             goto end;
         process_log();
     }
-    ret = true;
 end:
     videos_destroy(&videos);
     subs_bar_destroy(&subs_bar);
