@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "buffer.h"
 #include "db.h"
@@ -10,17 +11,21 @@
 #include "log.h"
 #include "update.h"
 
-static void build_query_common(struct buffer *b) {
+static void build_query_common(struct buffer *b, int since) {
     --b->n, buffer_append_str(b, " from subs where disabled == 0");
+    if(since)
+        --b->n, buffer_append_str(b, " and last_update < ?");
 }
 
-static bool count_subs(sqlite3 *db, struct buffer *b, size_t *p) {
+static bool count_subs(sqlite3 *db, struct buffer *b, int since, size_t *p) {
     buffer_append_str(b, "select count(*)");
-    build_query_common(b);
+    build_query_common(b, since);
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(db, b->p, (int)b->n, 0, &stmt, NULL);
     if(!stmt)
         return false;
+    if(since)
+        sqlite3_bind_int(stmt, 1, since);
     for(;;)
         switch(sqlite3_step(stmt)) {
         case SQLITE_BUSY: continue;
@@ -57,6 +62,29 @@ static int has_youtube(sqlite3 *db) {
     return exists_query(db, sql, sizeof(sql) - 1, &param);
 }
 
+static bool set_last_update(sqlite3 *db, int id) {
+    time_t t = time(NULL);
+    const char sql[] = "update subs set last_update == ? where id == ?";
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
+    if(!stmt)
+        return false;
+    sqlite3_bind_int(stmt, 1, (int)t);
+    sqlite3_bind_int(stmt, 2, id);
+    bool ret = false;
+    for(;;) {
+        switch(sqlite3_step(stmt)) {
+        case SQLITE_BUSY:
+        case SQLITE_ROW: continue;
+        case SQLITE_DONE: ret = true; /* fallthrough */
+        default: goto end;
+        }
+    }
+end:
+    ret = sqlite3_finalize(stmt) == SQLITE_OK && ret;
+    return ret;
+}
+
 static bool report(sqlite3 *db, size_t initial_count) {
     size_t final_count = 0;
     if(!count_videos(db, &final_count))
@@ -69,7 +97,8 @@ static bool report(sqlite3 *db, size_t initial_count) {
 }
 
 bool subs_update(
-    const struct subs *s, const struct http_client *http, u32 flags)
+    const struct subs *s, const struct http_client *http,
+    u32 flags, int delay, int since)
 {
     const bool verbose = s->log_level;
     sqlite3 *const db = s->db;
@@ -77,7 +106,7 @@ bool subs_update(
     size_t subs_count = 0, videos_count = 0;
     struct buffer sql = {0};
     if(verbose) {
-        if(!count_subs(db, &sql, &subs_count))
+        if(!count_subs(db, &sql, since, &subs_count))
             goto e0;
         if(!count_videos(db, &videos_count))
             goto e0;
@@ -93,14 +122,21 @@ bool subs_update(
     }
     sql.n = 0;
     buffer_append_str(&sql, "select id, yt_id, type, name");
-    build_query_common(&sql);
+    build_query_common(&sql, since);
     --sql.n, buffer_append_str(&sql, " order by id");
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(db, sql.p, (int)sql.n, 0, &stmt, NULL);
     if(!stmt)
         goto e1;
+    if(since)
+        sqlite3_bind_int(stmt, 1, since);
     struct buffer b = {0};
-    for(size_t i = 0;; ++i) {
+    size_t i = 0;
+    goto after_delay;
+    for(;; ++i) {
+        if(delay)
+            sleep((unsigned)delay);
+after_delay:
         switch(sqlite3_step(stmt)) {
         case SQLITE_BUSY: continue;
         case SQLITE_ROW: break;
@@ -129,6 +165,8 @@ bool subs_update(
             log_err("%s: unsupported type: %d\n", __func__, type);
             goto e2;
         }
+        if(!set_last_update(db, id))
+            goto e2;
         b.n = 0;
     }
 e2:
