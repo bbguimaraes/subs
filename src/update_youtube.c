@@ -19,7 +19,7 @@ enum result { DONE = 1, ERR };
 
 static const char *CHANNEL_ENTRIES =
     "import sys\n"
-    "import youtube_dl\n"
+    "import yt_dlp as youtube_dl\n"
     LOGGER
     "PAGE_SIZE = 20\n"
     "for line in sys.stdin:\n"
@@ -49,7 +49,7 @@ static const char *CHANNEL_ENTRIES =
 static const char *VIDEO_TIMESTAMP =
     "import datetime\n"
     "import sys\n"
-    "import youtube_dl\n"
+    "import yt_dlp as youtube_dl\n"
     LOGGER
     "ytdl = youtube_dl.YoutubeDL({'logger': logger()})\n"
     "for id in sys.stdin:\n"
