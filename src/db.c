@@ -39,6 +39,7 @@ sqlite3 *db_init(const char *path) {
             " ext_id text not null,"
             " title text not null,"
             " timestamp integer default(0),"
+            " duration_seconds integer default(0),"
             " watched boolean not null default(0),"
             " foreign key(sub) references subs(id)"
             " constraint unique_sub_ext_id unique(sub, ext_id)"

@@ -76,6 +76,7 @@ static void format_video(sqlite3_stmt *stmt, FILE *f) {
         " %s"   // watched
         " %s"   // sub type
         " %lld" // timestamp
+        " %lld" // duration
         " %s"   // ext_id
         " %s"   // name
         " %s"   // title
@@ -84,9 +85,10 @@ static void format_video(sqlite3_stmt *stmt, FILE *f) {
         sqlite3_column_int(stmt, 1) ? "w" : "0",
         subs_type_name(sqlite3_column_int(stmt, 2)),
         sqlite3_column_int64(stmt, 3),
-        sqlite3_column_text(stmt, 4),
+        sqlite3_column_int64(stmt, 4),
         sqlite3_column_text(stmt, 5),
-        sqlite3_column_text(stmt, 6));
+        sqlite3_column_text(stmt, 6),
+        sqlite3_column_text(stmt, 7));
 }
 
 static void format_tag(sqlite3_stmt *stmt, FILE *f) {
@@ -276,7 +278,8 @@ bool subs_list_videos(const struct subs *s, i64 tag, FILE *f) {
     buffer_append_str(&b,
         "select"
             " videos.id, watched, subs.type,"
-            " timestamp, videos.ext_id, subs.ext_id,"
+            " timestamp, duration_seconds,"
+            " videos.ext_id, subs.ext_id,"
             " replace(title, '\n', '\\n'), sub"
         " from videos"
         " join subs on subs.id == videos.sub");
@@ -342,11 +345,12 @@ end:
 
 bool subs_add_video(
     const struct subs *s,
-    i64 sub, i64 timestamp, const char *ext_id, const char *title)
+    i64 sub, i64 timestamp, i64 duration_seconds,
+    const char *ext_id, const char *title)
 {
     const char sql[] =
-        "insert into videos (sub, timestamp, ext_id, title)"
-        " values (?, ?, ?, ?)";
+        "insert into videos (sub, timestamp, duration_seconds, ext_id, title)"
+        " values (?, ?, ?, ?, ?)";
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(s->db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
     if(!stmt)
@@ -355,16 +359,17 @@ bool subs_add_video(
     if(!(
         sqlite3_bind_int64(stmt, 1, sub) == SQLITE_OK
         && sqlite3_bind_int64(stmt, 2, timestamp) == SQLITE_OK
-        && sqlite3_bind_text(stmt, 3, ext_id, -1, SQLITE_STATIC) == SQLITE_OK
-        && sqlite3_bind_text(stmt, 4, title, -1, SQLITE_STATIC) == SQLITE_OK
+        && sqlite3_bind_int64(stmt, 3, duration_seconds) == SQLITE_OK
+        && sqlite3_bind_text(stmt, 4, ext_id, -1, SQLITE_STATIC) == SQLITE_OK
+        && sqlite3_bind_text(stmt, 5, title, -1, SQLITE_STATIC) == SQLITE_OK
         && step_stmt_once(stmt)
     ))
         goto end;
     if(s->log_level)
         fprintf(
-            stderr, "created new video: %lld %lld %lld %s %s\n",
+            stderr, "created new video: %lld %lld %lld %lld%s %s\n",
             (long long)sqlite3_last_insert_rowid(s->db),
-            (long long)sub, (long long)timestamp,
+            (long long)sub, (long long)timestamp, (long long)duration_seconds,
             ext_id, title);
     ret = true;
 end:
