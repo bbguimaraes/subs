@@ -113,6 +113,42 @@ end:
     return ret;
 }
 
+static bool rm(void) {
+    struct subs s = {.db_path = ":memory:"};
+    bool ret = false;
+    if(!(
+        subs_init(&s)
+        && subs_add(&s, SUBS_LBRY, "name0", "id0")
+        && subs_add(&s, SUBS_YOUTUBE, "name1", "id1")
+        && subs_add_video(&s, 1, 1630796966, 26233, "claim_id0", "v0")
+        && subs_add_video(&s, 1, 1630795115, 29954, "claim_id1", "v1")
+        && subs_add_video(&s, 2, 1630795015, 33675, "claim_id2", "v2")
+        && subs_add_tag(&s, "t0")
+        && subs_tag_sub(&s, 1, 1)
+        && subs_tag_video(&s, 1, 1)
+        && subs_rm(&s, 1)
+    ))
+        goto end;
+    FILE *const tmp = tmpfile();
+    if(!tmp) {
+        LOG_ERRNO("tmpfile", 0);
+        goto end;
+    }
+    if(!subs_list(&s, 0, tmp))
+        goto end;
+    if(!subs_list_videos(&s, 0, tmp))
+        goto end;
+    const char expected[] =
+        "2 youtube id1 name1\n"
+        "3 0 youtube 1630795015 33675 claim_id2 id1 v2\n";
+    if(!CHECK_FILE(tmp, expected))
+        goto end;
+    ret = true;
+end:
+    ret = subs_destroy(&s) && ret;
+    return ret;
+}
+
 static bool tag(void) {
     struct subs s = {.db_path = ":memory:"};
     bool ret = false;
@@ -556,6 +592,7 @@ int main(void) {
     ret = RUN(init_db) && ret;
     ret = RUN(add) && ret;
     ret = RUN(add_video) && ret;
+    ret = RUN(rm) && ret;
     ret = RUN(tag) && ret;
     ret = RUN(tag_subs) && ret;
     ret = RUN(tag_videos) && ret;

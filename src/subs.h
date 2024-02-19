@@ -45,6 +45,7 @@ bool subs_list_tags(const struct subs *s, FILE *f);
 bool subs_add(
     const struct subs *s,
     enum subs_type type, const char *name, const char *id);
+bool subs_rm(const struct subs *s, int64_t id);
 bool subs_add_video(
     const struct subs *s,
     int64_t sub, int64_t timestamp, int64_t duration_seconds,
