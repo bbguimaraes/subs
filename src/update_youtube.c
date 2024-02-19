@@ -65,8 +65,10 @@ static const char *VIDEO_INFO =
     "        print(f'failed to get information for {id}:', file=sys.stderr)\n"
     "        raise\n"
     "    d = datetime.datetime.strptime(info['upload_date'], '%Y%m%d')\n"
-    "    out = str(int(d.timestamp()))\n"
-    "    sys.stdout.write(out)\n";
+    "    sys.stdout.write(\n"
+    "        '{:d} {:d}'.format(\n"
+    "            int(d.timestamp()),\n"
+    "            int(info['duration'])))\n";
 
 #undef LOGGER
 
@@ -200,10 +202,12 @@ static bool exists_query(
     bool *p);
 static bool get_info(
     const struct update_youtube *u,
-    const char *id, size_t id_len, struct buffer *b, i64 *timestamp);
+    const char *id, size_t id_len, struct buffer *b,
+    i64 *timestamp, i64 *duration_seconds);
 static bool insert(
     sqlite3 *db, bool verbose, int id, const char *ext_id, size_t ext_id_len,
-    const char *title, size_t title_len, i64 timestamp, int *n);
+    const char *title, size_t title_len, i64 timestamp, i64 duration_seconds,
+    int *n);
 
 static bool process_line(
     sqlite3 *db, const struct update_youtube *u, struct buffer *b,
@@ -219,13 +223,14 @@ static bool process_line(
     if(exists)
         return true;
     *done = false;
-    i64 timestamp;
-    if(!get_info(u, ext_id, ext_id_len, b, &timestamp))
+    i64 timestamp, duration_seconds;
+    if(!get_info(u, ext_id, ext_id_len, b, &timestamp, &duration_seconds))
         return false;
-    if(!timestamp)
+    if(!timestamp || !duration_seconds)
         return true;
     return insert(
-        db, verbose, id, ext_id, ext_id_len, title, title_len, timestamp, n);
+        db, verbose, id, ext_id, ext_id_len, title, title_len, timestamp,
+        duration_seconds, n);
 }
 
 static bool exists_query(
@@ -253,7 +258,8 @@ end:
 
 static bool get_info(
     const struct update_youtube *u,
-    const char *id, size_t id_len, struct buffer *b, i64 *timestamp)
+    const char *id, size_t id_len, struct buffer *b,
+    i64 *timestamp, i64 *duration_seconds)
 {
     b->n = 0;
     buffer_reserve(b, id_len + 1);
@@ -271,7 +277,14 @@ static bool get_info(
     const i64 t = parse_i64((const char*)b->p);
     if(t == -1)
         goto err;
+    const char *const space = strchr((const char*)b->p, ' ');
+    if(!space)
+        goto err;
+    const i64 d = parse_i64(space + 1);
+    if(d == -1)
+        goto err;
     *timestamp = t;
+    *duration_seconds = d;
     return true;
 err:
     LOG_ERR("invalid yt-dlp output:\n", 0);
@@ -281,11 +294,12 @@ err:
 
 static bool insert(
     sqlite3 *db, bool verbose, int id, const char *ext_id, size_t ext_id_len,
-    const char *title, size_t title_len, i64 timestamp, int *n)
+    const char *title, size_t title_len, i64 timestamp, i64 duration_seconds,
+    int *n)
 {
     const char sql[] =
-        "insert into videos (sub, ext_id, timestamp, title)"
-        " values (?, ?, ?, ?)";
+        "insert into videos (sub, ext_id, timestamp, duration_seconds, title)"
+        " values (?, ?, ?, ?, ?)";
     sqlite3_stmt *stmt;
     sqlite3_prepare_v3(db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
     if(!stmt)
@@ -296,7 +310,8 @@ static bool insert(
         && sqlite3_bind_text(stmt, 2, ext_id, (int)ext_id_len, SQLITE_STATIC)
             == SQLITE_OK
         && sqlite3_bind_int64(stmt, 3, timestamp) == SQLITE_OK
-        && sqlite3_bind_text(stmt, 4, title, (int)title_len, SQLITE_STATIC)
+        && sqlite3_bind_int64(stmt, 4, duration_seconds) == SQLITE_OK
+        && sqlite3_bind_text(stmt, 5, title, (int)title_len, SQLITE_STATIC)
             == SQLITE_OK
     ))
         goto err;
@@ -310,9 +325,10 @@ static bool insert(
 done:
     if(verbose)
         fprintf(
-            stderr, "created new video: %" PRId64 " %d %.*s %" PRId64 " %.*s\n",
+            stderr, "created new video: %" PRId64 " %d %.*s %" PRId64 " %"
+                PRId64 " %.*s\n",
             (i64)sqlite3_last_insert_rowid(db), id, (int)ext_id_len, ext_id,
-            timestamp, (int)title_len, title);
+            timestamp, duration_seconds, (int)title_len, title);
     ++(*n);
     ret = true;
 err:

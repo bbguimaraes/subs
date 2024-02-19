@@ -89,9 +89,9 @@ static bool add_video(void) {
         subs_init(&s)
         && subs_add(&s, SUBS_LBRY, "name0", "id0")
         && subs_add(&s, SUBS_YOUTUBE, "name1", "id1")
-        && subs_add_video(&s, 1, 1630796966, "claim_id0", "v0")
-        && subs_add_video(&s, 1, 1630795115, "claim_id1", "v1")
-        && subs_add_video(&s, 2, 1630795015, "claim_id2", "v2")
+        && subs_add_video(&s, 1, 1630796966, 26233, "claim_id0", "v0")
+        && subs_add_video(&s, 1, 1630795115, 29954, "claim_id1", "v1")
+        && subs_add_video(&s, 2, 1630795015, 33675, "claim_id2", "v2")
     ))
         goto end;
     FILE *const tmp = tmpfile();
@@ -102,9 +102,9 @@ static bool add_video(void) {
     if(!subs_list_videos(&s, 0, tmp))
         goto end;
     const char expected[] =
-        "3 0 youtube 1630795015 claim_id2 id1 v2\n"
-        "2 0 lbry 1630795115 claim_id1 id0 v1\n"
-        "1 0 lbry 1630796966 claim_id0 id0 v0\n";
+        "3 0 youtube 1630795015 33675 claim_id2 id1 v2\n"
+        "2 0 lbry 1630795115 29954 claim_id1 id0 v1\n"
+        "1 0 lbry 1630796966 26233 claim_id0 id0 v0\n";
     if(!CHECK_FILE(tmp, expected))
         goto end;
     ret = true;
@@ -191,9 +191,9 @@ static bool tag_videos(void) {
         subs_init(&s)
         && subs_add(&s, SUBS_LBRY, "name0", "id0")
         && subs_add(&s, SUBS_YOUTUBE, "name1", "id1")
-        && subs_add_video(&s, 1, 1630796966, "claim_id0", "v0")
-        && subs_add_video(&s, 1, 1630795115, "claim_id1", "v1")
-        && subs_add_video(&s, 2, 1630795015, "claim_id2", "v2")
+        && subs_add_video(&s, 1, 1630796966, 26233, "claim_id0", "v0")
+        && subs_add_video(&s, 1, 1630795115, 29954, "claim_id1", "v1")
+        && subs_add_video(&s, 2, 1630795015, 33675, "claim_id2", "v2")
         && subs_add_tag(&s, "tag0")
         && subs_add_tag(&s, "tag1")
         && subs_tag_video(&s, 1, 1)
@@ -207,7 +207,7 @@ static bool tag_videos(void) {
     }
     if(!subs_list_videos(&s, 1, tmp))
         goto end;
-    const char expected0[] = "1 0 lbry 1630796966 claim_id0 id0 v0\n";
+    const char expected0[] = "1 0 lbry 1630796966 26233 claim_id0 id0 v0\n";
     if(!CHECK_FILE(tmp, expected0))
         goto end;
     if(fseek(tmp, SEEK_SET, 0)) {
@@ -216,7 +216,7 @@ static bool tag_videos(void) {
     }
     if(!subs_list_videos(&s, 2, tmp))
         goto end;
-    const char expected1[] = "2 0 lbry 1630795115 claim_id1 id0 v1\n";
+    const char expected1[] = "2 0 lbry 1630795115 29954 claim_id1 id0 v1\n";
     if(!CHECK_FILE(tmp, expected1))
         goto end;
     ret = true;
@@ -232,9 +232,9 @@ static bool watched(void) {
         subs_init(&s)
         && subs_add(&s, SUBS_LBRY, "name0", "id0")
         && subs_add(&s, SUBS_YOUTUBE, "name1", "id1")
-        && subs_add_video(&s, 1, 1630796966, "claim_id0", "v0")
-        && subs_add_video(&s, 1, 1630795115, "claim_id1", "v1")
-        && subs_add_video(&s, 2, 1630795015, "claim_id2", "v2")
+        && subs_add_video(&s, 1, 1630796966, 26233, "claim_id0", "v0")
+        && subs_add_video(&s, 1, 1630795115, 29954, "claim_id1", "v1")
+        && subs_add_video(&s, 2, 1630795015, 33675, "claim_id2", "v2")
         && subs_set_watched(&s, 2, true)
         && subs_set_watched(&s, 2, false)
         && subs_set_watched(&s, 2, true)
@@ -249,9 +249,9 @@ static bool watched(void) {
     if(!subs_list_videos(&s, 0, tmp))
         goto end;
     const char expected[] =
-        "3 w youtube 1630795015 claim_id2 id1 v2\n"
-        "2 w lbry 1630795115 claim_id1 id0 v1\n"
-        "1 0 lbry 1630796966 claim_id0 id0 v0\n";
+        "3 w youtube 1630795015 33675 claim_id2 id1 v2\n"
+        "2 w lbry 1630795115 29954 claim_id1 id0 v1\n"
+        "1 0 lbry 1630796966 26233 claim_id0 id0 v0\n";
     if(!CHECK_FILE(tmp, expected))
         goto end;
     ret = true;
@@ -274,11 +274,19 @@ static bool update(void) {
             "result": {
                 "items": [{
                     "claim_id": "claim_id6",
-                    "value": {"title": "v6", "release_time": "1630795115"},
+                    "value": {
+                        "title": "v6",
+                        "release_time": "1630795115",
+                        "video": {"duration": 33675}
+                    },
                     "value_type": "stream"
                 }, {
                     "claim_id": "claim_id4",
-                    "value": {"title": "v4", "release_time": "1630796966"},
+                    "value": {
+                        "title": "v4",
+                        "release_time": "1630796966",
+                        "video": {"duration": 26233}
+                    },
                     "value_type": "stream"
                 }],
                 "page": 1,
@@ -300,7 +308,11 @@ static bool update(void) {
             "result": {
                 "items": [{
                     "claim_id": "claim_id5",
-                    "value": {"title": "v5", "release_time": "1630795015"},
+                    "value": {
+                        "title": "v5",
+                        "release_time": "1630795015",
+                        "video": {"duration": 29954}
+                    },
                     "value_type": "stream"
                 }],
                 "page": 1,
@@ -333,9 +345,9 @@ static bool update(void) {
     if(!subs_list_videos(&s, 0, tmp))
         goto end;
     const char expected[] =
-        "3 0 lbry 1630795015 claim_id5 id1 v5\n"
-        "2 0 lbry 1630795115 claim_id6 id0 v6\n"
-        "1 0 lbry 1630796966 claim_id4 id0 v4\n";
+        "3 0 lbry 1630795015 29954 claim_id5 id1 v5\n"
+        "2 0 lbry 1630795115 33675 claim_id6 id0 v6\n"
+        "1 0 lbry 1630796966 26233 claim_id4 id0 v4\n";
     if(!CHECK_FILE(tmp, expected))
         goto end;
     ret = true;
@@ -358,11 +370,19 @@ static bool update_pages(void) {
             "result": {
                 "items": [{
                     "claim_id": "claim_id7",
-                    "value": {"title": "v7", "release_time": "1630796966"},
+                    "value": {
+                        "title": "v7",
+                        "release_time": "1630796966",
+                        "video": {"duration": 37396}
+                    },
                     "value_type": "stream"
                 }, {
                     "claim_id": "claim_id6",
-                    "value": {"title": "v6", "release_time": "1630795115"},
+                    "value": {
+                        "title": "v6",
+                        "release_time": "1630795115",
+                        "video": {"duration": 33675}
+                    },
                     "value_type": "stream"
                 }],
                 "page": 1,
@@ -384,11 +404,19 @@ static bool update_pages(void) {
             "result": {
                 "items": [{
                     "claim_id": "claim_id5",
-                    "value": {"title": "v5", "release_time": "1630795015"},
+                    "value": {
+                        "title": "v5",
+                        "release_time": "1630795015",
+                        "video": {"duration": 29954}
+                    },
                     "value_type": "stream"
                 }, {
                     "claim_id": "claim_id4",
-                    "value": {"title": "v4", "release_time": "1630794985"},
+                    "value": {
+                        "title": "v4",
+                        "release_time": "1630794985",
+                        "video": {"duration": 26233}
+                    },
                     "value_type": "stream"
                 }],
                 "page": 2,
@@ -419,10 +447,10 @@ static bool update_pages(void) {
     if(!subs_list_videos(&s, 0, tmp))
         goto end;
     const char expected[] =
-        "3 0 lbry 1630794985 claim_id4 id0 v4\n"
-        "4 0 lbry 1630795015 claim_id5 id0 v5\n"
-        "1 0 lbry 1630795115 claim_id6 id0 v6\n"
-        "2 0 lbry 1630796966 claim_id7 id0 v7\n";
+        "3 0 lbry 1630794985 26233 claim_id4 id0 v4\n"
+        "4 0 lbry 1630795015 29954 claim_id5 id0 v5\n"
+        "1 0 lbry 1630795115 33675 claim_id6 id0 v6\n"
+        "2 0 lbry 1630796966 37396 claim_id7 id0 v7\n";
     if(!CHECK_FILE(tmp, expected))
         goto end;
     ret = true;
@@ -445,11 +473,19 @@ static bool update_short(void) {
             "result": {
                 "items": [{
                     "claim_id": "claim_id7",
-                    "value": {"title": "v7", "release_time": "1630796966"},
+                    "value": {
+                        "title": "v7",
+                        "release_time": "1630796966",
+                        "video": {"duration": 37396}
+                    },
                     "value_type": "stream"
                 }, {
                     "claim_id": "claim_id6",
-                    "value": {"title": "v6", "release_time": "1630795115"},
+                    "value": {
+                        "title": "v6",
+                        "release_time": "1630795115",
+                        "video": {"duration": 33675}
+                    },
                     "value_type": "stream"
                 }],
                 "page": 1,
@@ -471,11 +507,19 @@ static bool update_short(void) {
             "result": {
                 "items": [{
                     "claim_id": "claim_id5",
-                    "value": {"title": "v5", "release_time": "1630795015"},
+                    "value": {
+                        "title": "v5",
+                        "release_time": "1630795015",
+                        "video": {"duration": 29954}
+                    },
                     "value_type": "stream"
                 }, {
                     "claim_id": "claim_id4",
-                    "value": {"title": "v4", "release_time": "1630794985"},
+                    "value": {
+                        "title": "v4",
+                        "release_time": "1630794985",
+                        "video": {"duration": 26233}
+                    },
                     "value_type": "stream"
                 }],
                 "page": 2,

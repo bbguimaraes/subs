@@ -17,7 +17,7 @@
     "select" \
         " videos.id, subs.type, videos.watched," \
         " subs.name, videos.title," \
-        " videos.timestamp"
+        " videos.timestamp, videos.duration_seconds"
 
 static void clear_selection(struct videos *v) {
     v->tag = v->type = v->sub = 0;
@@ -57,16 +57,28 @@ static char *videos_row_to_str(sqlite3_stmt *stmt, int id) {
     const char *const sub = (const char*)sqlite3_column_text(stmt, 3);
     const char *const title = (const char*)sqlite3_column_text(stmt, 4);
     const time_t timestamp = sqlite3_column_int(stmt, 5);
+    const unsigned duration_seconds = (unsigned)sqlite3_column_int(stmt, 6);
     struct tm tm, *const tm_p = localtime_r(&timestamp, &tm);
     if(!tm_p)
         return LOG_ERRNO("localtime_r", 0), NULL;
-    char timestamp_str[11];
+    const int COLON = 1, DIGIT = 1;
+    char timestamp_str[11], duration_str[2 * COLON + 5 * DIGIT + 1];
     strftime(timestamp_str, sizeof(timestamp_str), "%Y-%m-%d", &tm);
+    {
+        const unsigned h = duration_seconds / 60 / 60;
+        const unsigned m = duration_seconds / 60 % 60;
+        const unsigned s = duration_seconds % 60;
+        assert(h < 10000);
+        if(h < 10)
+            sprintf(duration_str, "%1u:%02u:%02u", h, m, s);
+        else
+            sprintf(duration_str, "%4u:%02u", h, m);
+    }
     return sprintf_alloc(
-        "%c%c %d %s %s | %s",
+        "%c%c %d %s %s %s | %s",
         type_str[MIN(SUBS_TYPE_MAX, (unsigned)type)],
         watched_str[MIN(2, (unsigned)watched)],
-        id, timestamp_str, sub, title);
+        id, timestamp_str, duration_str, sub, title);
 }
 
 static bool populate(

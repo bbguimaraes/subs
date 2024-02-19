@@ -47,7 +47,8 @@ bool subs_add(
     enum subs_type type, const char *name, const char *id);
 bool subs_add_video(
     const struct subs *s,
-    int64_t sub, int64_t timestamp, const char *ext_id, const char *title);
+    int64_t sub, int64_t timestamp, int64_t duration_seconds,
+    const char *ext_id, const char *title);
 bool subs_add_tag(const struct subs *s, const char *name);
 bool subs_tag_sub(const struct subs *s, int64_t tag, int64_t id);
 bool subs_tag_video(const struct subs *s, int64_t tag, int64_t id);

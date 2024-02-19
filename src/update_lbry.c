@@ -11,7 +11,7 @@ enum { DONE = 1, ERR };
 
 struct update_item {
     const char *claim_id, *title;
-    i64 timestamp;
+    i64 timestamp, duration_seconds;
 };
 
 static const char *POST_FMT = "{"
@@ -170,6 +170,18 @@ static i64 lbry_timestamp(
     return -1;
 }
 
+static i64 lbry_duration_seconds(const char *id, const cJSON *value) {
+    const cJSON *const video = get_item(value, "video");
+    if(!video)
+        return LOG_ERR("%s: missing video field\n", id), -1;
+    const cJSON *const duration = get_item(video, "duration");
+    if(!duration)
+        return LOG_ERR("%s: missing video.duration field\n", id), -1;
+    if(!cJSON_IsNumber(duration))
+        return LOG_ERR("%s: invalid duration\n", id), -1;
+    return duration->valueint;
+}
+
 static bool list_to_items(
     const struct subs *s, const cJSON *items, struct buffer *b)
 {
@@ -196,10 +208,14 @@ static bool list_to_items(
         const i64 timestamp = lbry_timestamp(id, item, value);
         if(timestamp == -1)
             return false;
+        const i64 duration_seconds = lbry_duration_seconds(id, value);
+        if(duration_seconds == -1)
+            return false;
         BUFFER_APPEND(b, (&(struct update_item){
             .claim_id = id,
             .title = title->valuestring,
             .timestamp = timestamp,
+            .duration_seconds = duration_seconds,
         }));
     }
     return true;
@@ -215,7 +231,8 @@ static int process(const struct subs *s, int id, const struct buffer *b) {
     size_t n = b->n / sizeof(*p);
     assert(n * sizeof(*p) == b->n);
     const char sql[] =
-        "insert into videos (sub, ext_id, timestamp, title) values (?, ?, ?, ?)"
+        "insert into videos (sub, ext_id, timestamp, duration_seconds, title)"
+        " values (?, ?, ?, ?, ?)"
         " on conflict (sub, ext_id) do nothing;";
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
@@ -241,8 +258,9 @@ static bool insert(
         && sqlite3_bind_text(
             stmt, 2, item->claim_id, -1, SQLITE_STATIC) == SQLITE_OK
         && sqlite3_bind_int64(stmt, 3, item->timestamp) == SQLITE_OK
+        && sqlite3_bind_int64(stmt, 4, item->duration_seconds) == SQLITE_OK
         && sqlite3_bind_text(
-            stmt, 4, item->title, -1, SQLITE_STATIC) == SQLITE_OK
+            stmt, 5, item->title, -1, SQLITE_STATIC) == SQLITE_OK
     ))
         return false;
     for(;;)
@@ -256,9 +274,10 @@ done:
     if(sqlite3_changes(db)) {
         if(log)
             fprintf(
-                stderr, "created new video: %" PRId64 " %d %s %" PRId64 " %s\n",
+                stderr, "created new video: %" PRId64 " %d %s %" PRId64 " %"
+                    PRId64 " %s\n",
                 (i64)sqlite3_last_insert_rowid(db), id, item->claim_id,
-                item->timestamp, item->title);
+                item->timestamp, item->duration_seconds, item->title);
         ++(*acc);
     }
     return sqlite3_reset(stmt) == SQLITE_OK;
