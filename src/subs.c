@@ -29,6 +29,7 @@ static void usage(void) {
 "    videos          List videos.\n"
 "    add TYPE NAME ID\n"
 "                    Add a subscription.\n"
+"    rm ID           Remove a subscription.\n"
 "    tag add NAME    Create a tag.\n"
 "    tag subs|videos TAG_ID ID...\n"
 "                    Add tag TAG_ID to subscriptions/videos.\n"
@@ -96,6 +97,23 @@ static void format_tag(sqlite3_stmt *stmt, FILE *f) {
         f, "%d %s\n",
         sqlite3_column_int(stmt, 0),
         sqlite3_column_text(stmt, 1));
+}
+
+static bool exec_simple_query(sqlite3 *db, const char *sql, int len, i64 arg) {
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, sql, len, 0, &stmt, NULL);
+    if(!stmt)
+        return false;
+    bool ret = false;
+    if(!(
+        sqlite3_bind_int64(stmt, 1, arg) == SQLITE_OK
+        && step_stmt_once(stmt)
+    ))
+        goto end;
+    ret = true;
+end:
+    ret &= sqlite3_finalize(stmt) == SQLITE_OK;
+    return ret;
 }
 
 const char *subs_type_name(enum subs_type type) {
@@ -341,6 +359,21 @@ bool subs_add(
 end:
     ret &= sqlite3_finalize(stmt) == SQLITE_OK;
     return ret;
+}
+
+bool subs_rm(const struct subs *s, i64 id) {
+    const char sql_videos_tags[] =
+        "delete from videos_tags"
+        " where video in (select id from videos where sub == ?)";
+    const char sql_tags[] = "delete from subs_tags where sub == ?";
+    const char sql_videos[] = "delete from videos where sub == ?";
+    const char sql[] = "delete from subs where id == ?";
+#define Q(x) x, sizeof(x) - 1
+    return exec_simple_query(s->db, Q(sql_videos_tags), id)
+        && exec_simple_query(s->db, Q(sql_tags), id)
+        && exec_simple_query(s->db, Q(sql_videos), id)
+        && exec_simple_query(s->db, Q(sql), id);
+#undef Q
 }
 
 bool subs_add_video(
@@ -624,6 +657,12 @@ bool subs_exec(struct subs *s, int argc, char **argv) {
         return check_argc("add", argc, 3)
             && (t = subs_parse_type(argv[0]))
             && subs_add(s, t, argv[1], argv[2]);
+    }
+    if(strcmp(*argv, "rm") == 0) {
+        i64 id = 0;
+        return check_argc("rm", --argc, 1)
+            && ((id = parse_i64(argv[1])) != -1)
+            && subs_rm(s, id);
     }
     if(strcmp(*argv, "tag") == 0)
         return cmd_tag(s, --argc, ++argv);
