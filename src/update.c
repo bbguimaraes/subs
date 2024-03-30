@@ -69,7 +69,8 @@ static bool report(sqlite3 *db, size_t initial_count) {
 }
 
 bool subs_update(
-    const struct subs *s, const struct http_client *http, u32 flags)
+    const struct subs *s, const struct http_client *http, u32 flags,
+    int delay)
 {
     const bool verbose = s->log_level;
     sqlite3 *const db = s->db;
@@ -100,7 +101,12 @@ bool subs_update(
     if(!stmt)
         goto e1;
     struct buffer b = {0};
-    for(size_t i = 0;; ++i) {
+    size_t i = 0;
+    goto after_delay;
+    for(;; ++i) {
+        if(delay)
+            sleep((unsigned)delay);
+after_delay:
         switch(sqlite3_step(stmt)) {
         case SQLITE_BUSY: continue;
         case SQLITE_ROW: break;
