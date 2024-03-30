@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -57,7 +58,7 @@ static inline size_t strlcpy(
     return (size_t)(dst - p);
 }
 
-static inline i64 parse_i64(const char *s) {
+static inline i64 parse_int_common(u64 max, const char *name, const char *s) {
     const char *e;
     errno = 0;
     const u64 ret = strtoull(s, (char**)&e, 10);
@@ -67,14 +68,22 @@ static inline i64 parse_i64(const char *s) {
         return -1;
     }
     if(e == s) {
-        fprintf(stderr, "failed to parse i64: %s\n", s);
+        fprintf(stderr, "failed to parse %s: %s\n", name, s);
         return -1;
     }
-    if(ret > INT64_MAX) {
-        fprintf(stderr, "i64 value too large: %" PRIu64 "\n", ret);
+    if(ret > max) {
+        fprintf(stderr, "%s value too large: %" PRIu64 "\n", name, ret);
         return -1;
     }
     return (i64)ret;
+}
+
+static inline int parse_int(const char *s) {
+    return (int)parse_int_common(INT_MAX, "int", s);
+}
+
+static inline i64 parse_i64(const char *s) {
+    return parse_int_common(INT64_MAX, "i64", s);
 }
 
 #endif

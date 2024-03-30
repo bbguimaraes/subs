@@ -548,15 +548,17 @@ static bool cmd_watched(struct subs *s, char **argv) {
 }
 
 static bool cmd_update(struct subs *s, int argc, char **argv) {
-    enum { DEEP = 1 };
+    enum { DEEP = 1, DELAY = 2 };
     const char short_opts[] = "h";
     const struct option long_opts[] = {
         {"help", no_argument, 0, 'h'},
         {"deep", no_argument, 0, DEEP},
+        {"delay", required_argument, 0, DELAY},
         {0},
     };
     bool ret = false;
     u32 flags = 0;
+    int delay = 0;
     for(;;) {
         int long_idx = 0;
         const int c = getopt_long(argc, argv, short_opts, long_opts, &long_idx);
@@ -565,6 +567,10 @@ static bool cmd_update(struct subs *s, int argc, char **argv) {
         switch(c) {
         case '?': goto end;
         case DEEP: flags |= SUBS_UPDATE_DEEP; break;
+        case DELAY:
+            if((delay = parse_int(optarg)) == -1)
+                return false;
+            break;
         case 'h':
             printf(
 "Usage: %s [options] update [options]\n"
@@ -572,7 +578,8 @@ static bool cmd_update(struct subs *s, int argc, char **argv) {
 "Options:\n"
 "    -h, --help      This help text.\n"
 "    --deep          Fetch all pages when updating.  By default, updates stop\n"
-"                    on the first page that does not contain new entries.\n",
+"                    on the first page that does not contain new entries.\n"
+"    --delay N       Stop for N seconds between each update.\n",
                 PROG_NAME);
             ret = true;
             goto end;
@@ -580,7 +587,7 @@ static bool cmd_update(struct subs *s, int argc, char **argv) {
     }
     struct http_client http = {0};
     http_client_init(&http, 0);
-    ret = subs_update(s, &http, flags);
+    ret = subs_update(s, &http, flags, delay);
 end:
     optind = 1;
     return ret;
