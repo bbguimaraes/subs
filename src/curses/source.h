@@ -10,6 +10,7 @@
 
 #include "const.h"
 #include "list.h"
+#include "search.h"
 
 struct subs;
 struct subs_curses;
@@ -20,6 +21,7 @@ struct source_bar {
     struct subs_bar *subs_bar;
     struct videos *videos;
     struct list list;
+    struct search search;
     int *items;
     int x, y, width, height, n_tags;
 };
