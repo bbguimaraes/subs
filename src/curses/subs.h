@@ -7,6 +7,7 @@
 
 #include "const.h"
 #include "list.h"
+#include "search.h"
 
 struct subs_curses;
 struct window;
@@ -15,6 +16,7 @@ struct subs_bar {
     struct subs_curses *s;
     struct videos *videos;
     struct list list;
+    struct search search;
     int *items;
     int x, y, width, height, tag, type;
     u8 flags;
