@@ -63,27 +63,45 @@ static bool select(struct source_bar *b) {
         && change_window(b->s, VIDEOS_IDX);
 }
 
-static void render_border(struct list *l, u8 flags) {
+static void render_border(struct list *l, u8 flags, const struct search *s) {
+    enum { BAR = 1, SPACE = 1 };
     flags &= WATCHED | NOT_WATCHED;
     list_box(l);
-    if(!flags)
+    int x = -SPACE;
+    if(flags) {
+        x -= 2 * SPACE;
+        char b[2], *p = b;
+        if(flags & WATCHED)
+            --x, *p++ = 'w';
+        else if(flags & NOT_WATCHED)
+            --x, *p++ = 'W';
+        *p++ = 0;
+        list_write_title(l, x, " %s ", b);
+    }
+    if(!search_is_active(s))
         return;
-    char title[4], *p = title;
-    *p++ = ' ';
-    if(flags & WATCHED)
-        *p++ = 'w';
-    else if(flags & NOT_WATCHED)
-        *p++ = 'W';
-    *p++ = ' ';
-    *p++ = 0;
-    list_write_title(l, -(int)(p - title), title);
+    const struct buffer search = s->b;
+    x -= (search.n ? (int)search.n - 1 : 0) + BAR + (1 + !(bool)flags) * SPACE;
+    list_write_title(l, x, " /%s ", search.p ? (const char*)search.p : "");
+}
+
+static enum subs_curses_key input_search(struct source_bar *b, int c) {
+    struct search *const s = &b->search;
+    struct list *const l = &b->list;
+    const enum subs_curses_key ret = list_search_input(s, l, c);
+    if(ret == KEY_HANDLED) {
+        list_box(l);
+        render_border(l, b->s->flags, s);
+        list_refresh(l);
+    }
+    return ret;
 }
 
 void source_bar_update_title(struct source_bar *b) {
     struct list *const l = &b->list;
     // XXX
     if(!l->w) return;
-    render_border(l, b->s->flags);
+    render_border(l, b->s->flags, &b->search);
     list_refresh(l);
 }
 
@@ -183,7 +201,7 @@ bool source_bar_reload(struct source_bar *b) {
         &b->list, NULL, (int)n - 1, lines, b->x, b->y, b->width, n + 1
     ))
         goto err1;
-    render_border(&b->list, b->s->flags);
+    render_border(&b->list, b->s->flags, &b->search);
     if(b->n_tags != n_tags)
         s->flags = (u8)(s->flags | RESIZED);
     b->items = items;
@@ -202,6 +220,7 @@ err0:
 void source_bar_destroy(struct source_bar *b) {
     list_destroy(&b->list);
     free(b->items);
+    free(b->search.b.p);
 }
 
 bool source_bar_leave(void *data) {
@@ -223,8 +242,19 @@ void source_bar_redraw(void *data) {
 
 enum subs_curses_key source_bar_input(void *data, int c) {
     struct source_bar *b = data;
+    if(search_is_input_active(&b->search))
+        return input_search(b, c);
     switch(c) {
     case '\n': if(!select(b)) return false; break;
+    case '/':
+        search_reset(&b->search);
+        render_border(&b->list, b->s->flags, &b->search);
+        list_refresh(&b->list);
+        break;
+    case 'n':
+        if(!search_is_empty(&b->search))
+            list_search_next(&b->search, &b->list);
+        break;
     default: return list_input(&b->list, c);
     }
     list_refresh(&b->list);
