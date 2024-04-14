@@ -6,6 +6,8 @@
 #include "../def.h"
 
 #include "const.h"
+#include "search.h"
+
 #include "window/list.h"
 
 struct subs_curses;
@@ -16,6 +18,7 @@ struct subs_bar {
     struct subs_curses *s;
     struct videos *videos;
     struct list list;
+    struct search search;
     int *items;
     int x, y, width, height, tag, type;
     u8 flags;

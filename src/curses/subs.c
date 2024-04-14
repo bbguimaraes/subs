@@ -14,6 +14,20 @@ enum flags {
     UNTAGGED = 1u << 0,
 };
 
+static void render_border(struct list *l, const struct search *s) {
+    enum { BAR = 1, SPACE = 1 };
+    const int n = l->n;
+    list_box(l);
+    int x = 0;
+    x -= (int)int_digits(n) + 3 * SPACE;
+    list_write_title(l, x, " %d ", n);
+    if(!search_is_active(s))
+        return;
+    const struct buffer search = s->b;
+    x -= (search.n ? (int)search.n - 1 : 0) + BAR + SPACE;
+    list_write_title(l, x, " /%s ", search.p ? (const char*)search.p : "");
+}
+
 static void clear_selection(struct subs_bar *b) {
     b->tag = b->type = 0;
     b->flags = (u8)(b->flags & ~UNTAGGED);
@@ -113,6 +127,17 @@ static bool populate(
 end:
     *lines = NULL;
     return (sqlite3_finalize(stmt) == SQLITE_OK) && ret;
+}
+
+static enum subs_curses_key input_search(struct subs_bar *b, int c) {
+    struct search *const s = &b->search;
+    struct list *const l = &b->list;
+    const enum subs_curses_key ret = list_search_input(s, l, c);
+    if(ret == KEY_HANDLED) {
+        render_border(l, s);
+        list_refresh(l);
+    }
+    return ret;
 }
 
 static bool select_item(struct subs_bar *b, int i) {
@@ -228,8 +253,7 @@ bool subs_bar_reload(struct subs_bar *b) {
     free(sql.p);
     b->items = items;
     b->width = width;
-    const unsigned n_len = int_digits(n);
-    list_write_title(&b->list, -((int)n_len + 3), " %d ", n);
+    render_border(&b->list, &b->search);
     list_refresh(&b->list);
     return true;
 err1:
@@ -245,6 +269,7 @@ err0:
 void subs_bar_destroy(struct subs_bar *b) {
     list_destroy(&b->list);
     free(b->items);
+    free(b->search.b.p);
 }
 
 bool subs_bar_leave(void *data) {
@@ -267,8 +292,19 @@ void subs_bar_redraw(void *data) {
 
 enum subs_curses_key subs_bar_input(void *data, int c) {
     struct subs_bar *b = data;
+    if(search_is_input_active(&b->search))
+        return input_search(b, c);
     switch(c) {
     case '\n': return select_item(b, b->list.i);
+    case '/':
+        search_reset(&b->search);
+        render_border(&b->list, &b->search);
+        list_refresh(&b->list);
+        break;
+    case 'n':
+        if(!search_is_empty(&b->search))
+            list_search_next(&b->search, &b->list);
+        break;
     case 'r': if(!reload_item(b)) return false; break;
     default: return list_input(&b->list, c);
     }
