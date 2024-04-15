@@ -1,6 +1,15 @@
 #include "db.h"
 
+#include "buffer.h"
 #include "log.h"
+
+void query_add_param_list(struct buffer *b, size_t n) {
+    if(!n)
+        return;
+    buffer_str_append_str(b, "?");
+    while(--n)
+        buffer_str_append_str(b, ", ?");
+}
 
 static void sqlite_log(void *data, int code, const char *msg) {
     (void)data;
@@ -94,15 +103,19 @@ int exists_query(sqlite3 *db, const char *sql, int len, const int *param) {
     int ret = -1;
     if(param && sqlite3_bind_int(stmt, 1, *param) != SQLITE_OK)
         goto end;
+    ret = exists_query_stmt(stmt);
+end:
+    if(sqlite3_finalize(stmt) != SQLITE_OK)
+        ret = -1;
+    return ret;
+}
+
+int exists_query_stmt(sqlite3_stmt *stmt) {
     for(;;)
         switch(sqlite3_step(stmt)) {
         case SQLITE_BUSY: continue;
-        case SQLITE_DONE: ret = 0; goto end;
-        case SQLITE_ROW: ret = 1; goto end;
-        default: ret = -1; goto end;
+        case SQLITE_DONE: return 0;
+        case SQLITE_ROW: return 1;
+        default: return -1;
         }
-end:
-    if(sqlite3_finalize(stmt) != SQLITE_OK)
-        return -1;
-    return ret;
 }

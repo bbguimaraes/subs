@@ -52,13 +52,32 @@ static bool count_videos(sqlite3 *db, size_t *p) {
         }
 }
 
-static int has_youtube(sqlite3 *db) {
-    const char sql[] =
-        "select 1 from subs"
-        " where subs.type == ?"
-        " limit 1";
-    const int param = SUBS_YOUTUBE;
-    return exists_query(db, sql, sizeof(sql) - 1, &param);
+static int has_youtube(sqlite3 *db, size_t n, i64 *ids) {
+    struct buffer sql = {0};
+    buffer_append_str(&sql, "select 1 from subs" " where subs.type == ?");
+    if(n) {
+        buffer_str_append_str(&sql, "and id in (");
+        query_add_param_list(&sql, n);
+        buffer_str_append_str(&sql, ")");
+    }
+    buffer_str_append_str(&sql, " limit 1");
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, sql.p, (int)sql.n - 1, 0, &stmt, NULL);
+    int ret = -1;
+    if(!stmt)
+        goto e0;
+    if(sqlite3_bind_int(stmt, 1, SUBS_YOUTUBE) != SQLITE_OK)
+        goto e1;
+    for(size_t i = 0; i != n; ++i)
+        if(sqlite3_bind_int64(stmt, (int)i + 2, ids[i]) != SQLITE_OK)
+            goto e1;
+    ret = exists_query_stmt(stmt);
+e1:
+    if(sqlite3_finalize(stmt) != SQLITE_OK)
+        ret = -1;
+e0:
+    free(sql.p);
+    return ret;
 }
 
 static bool set_last_update(sqlite3 *db, int id) {
@@ -96,8 +115,8 @@ static bool report(sqlite3 *db, size_t initial_count) {
 }
 
 bool subs_update(
-    const struct subs *s, const struct http_client *http, u32 flags,
-    int delay, int since)
+    const struct subs *s, const struct http_client *http, uint32_t flags,
+    int delay, int since, size_t n, i64 *ids)
 {
     const bool verbose = s->log_level;
     sqlite3 *const db = s->db;
@@ -111,24 +130,32 @@ bool subs_update(
             goto e0;
     }
     struct update_youtube youtube = {0};
-    const int needs_youtube = has_youtube(db);
+    const int needs_youtube = has_youtube(db, n, ids);
     switch(needs_youtube) {
     case -1:
-        goto e1;
+        goto e0;
     case 1:
         if(!update_youtube_init(&youtube))
-            goto e1;
+            goto e0;
     }
     sql.n = 0;
     buffer_append_str(&sql, "select id, ext_id, type, name");
     build_query_common(&sql, since);
+    if(n) {
+        buffer_str_append_str(&sql, " and id in (");
+        query_add_param_list(&sql, n);
+        buffer_str_append_str(&sql, ")");
+    }
     buffer_str_append_str(&sql, " order by id");
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(db, sql.p, (int)sql.n, 0, &stmt, NULL);
     if(!stmt)
         goto e1;
+    int i_param = 0;
     if(since)
-        sqlite3_bind_int(stmt, 1, since);
+        sqlite3_bind_int(stmt, ++i_param, since);
+    for(size_t i = 0; i != n; ++i)
+        sqlite3_bind_int64(stmt, ++i_param, ids[i]);
     struct buffer b = {0};
     size_t i = 0;
     goto after_delay;

@@ -10,6 +10,7 @@
 #include "def.h"
 #include "http.h"
 #include "log.h"
+#include "os.h"
 #include "subs.h"
 
 static void usage(void) {
@@ -35,7 +36,7 @@ static void usage(void) {
 "                    Add tag to subscriptions/videos.\n"
 "    watched [-r|--remove] ID\n"
 "                    Mark videos as watched (`-r` to unmark)\n"
-"    update [OPTIONS]\n"
+"    update [OPTIONS] [ID...]\n"
 "                    Fetch new videos from subscriptions.\n"
 "    tui             Start curses terminal interface.\n",
         PROG_NAME);
@@ -696,9 +697,17 @@ static bool cmd_update(struct subs *s, int argc, char **argv) {
             goto end;
         }
     }
+    const size_t pos_argc = (size_t)(argc - optind);
+    i64 *const pos_argv =
+        pos_argc ? ALLOCA(pos_argc * sizeof(*pos_argv)) : NULL;
+    for(size_t i = 0; argv[optind]; ++optind, ++i)
+        if((pos_argv[i] = parse_int(argv[optind])) == -1)
+            goto end;
     struct http_client http = {0};
     http_client_init(&http, 0);
-    ret = subs_update(s, &http, flags, delay, since);
+    if(!subs_update(s, &http, flags, delay, since, pos_argc, pos_argv))
+        goto end;
+    ret = true;
 end:
     optind = 1;
     return ret;

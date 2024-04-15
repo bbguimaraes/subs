@@ -1,4 +1,9 @@
+OS ?= unix
+
 CPPFLAGS := -D _POSIX_C_SOURCE=200809L
+ifeq ($(OS),unix)
+CPPFLAGS += -D SUBS_HAS_ALLOCA
+endif
 CFLAGS := -std=c17 -O2 -g3 -Wall -Wextra -Wpedantic -Wconversion
 OUTPUT_OPTION = -MMD -MP -o $@
 LDLIBS = \

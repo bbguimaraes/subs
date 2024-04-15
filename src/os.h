@@ -7,6 +7,11 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#if SUBS_HAS_ALLOCA
+#include <alloca.h>
+#define ALLOCA(...) alloca(__VA_ARGS__)
+#endif
+
 /** Performs an \c open(2)s with \c O_CREAT followed by \c fopen. */
 FILE *open_or_create(const char *path, const char *flags);
 

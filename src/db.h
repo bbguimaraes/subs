@@ -7,6 +7,9 @@
 
 #include <sqlite3.h>
 
+struct buffer;
+
+void query_add_param_list(struct buffer *b, size_t n);
 static bool step_stmt_once(sqlite3_stmt *stmt);
 static int db_print_row(void *data, int n, char **cols, char **names);
 static bool write_stmt(
@@ -14,6 +17,7 @@ static bool write_stmt(
 bool db_sqlite_init(void);
 sqlite3 *db_init(const char *path);
 int exists_query(sqlite3 *db, const char *sql, int len, const int *param);
+int exists_query_stmt(sqlite3_stmt *stmt);
 
 static inline bool step_stmt_once(sqlite3_stmt *stmt) {
     for(;;)
