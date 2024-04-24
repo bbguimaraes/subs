@@ -7,6 +7,7 @@
 
 #include "const.h"
 #include "list.h"
+#include "menu.h"
 #include "search.h"
 
 struct subs_curses;
@@ -17,9 +18,10 @@ struct subs_bar {
     struct videos *videos;
     struct list list;
     struct search search;
+    struct menu menu;
     int *items;
     int x, y, width, height, tag, type;
-    u8 flags;
+    u8 flags, order;
 };
 
 void subs_bar_toggle_watched(struct subs_bar *b);
