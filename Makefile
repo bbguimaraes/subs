@@ -20,6 +20,7 @@ subs: \
 	src/buffer.o \
 	src/curses/curses.o \
 	src/curses/lua/lua.o \
+	src/curses/menu.o \
 	src/curses/search.o \
 	src/curses/source.o \
 	src/curses/subs.o \
@@ -56,6 +57,7 @@ tests/subs: \
 	src/buffer.o \
 	src/curses/curses.o \
 	src/curses/lua/lua.o \
+	src/curses/menu.o \
 	src/curses/search.o \
 	src/curses/source.o \
 	src/curses/subs.o \
