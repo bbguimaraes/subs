@@ -1,5 +1,6 @@
 #include "subs.h"
 
+#include <ctype.h>
 #include <stdlib.h>
 
 #include "../buffer.h"
@@ -11,16 +12,40 @@
 #include "window/list_search.h"
 
 enum flags {
-    UNTAGGED = 1u << 0,
+    UNTAGGED =   1u << 0,
+    ORDER_DESC = 1u << 1,
 };
 
-static void render_border(struct list *l, const struct search *s) {
+static const char *MENU_OPTIONS[] = {
+    [SUBS_ID] = "id",
+    [SUBS_NAME] = "name",
+    [SUBS_WATCHED] = "watched",
+    [SUBS_UNWATCHED] = "unwatched",
+};
+
+static const char *MENU_DESC[] = {
+    [SUBS_ID] = "database ID",
+    [SUBS_NAME] = "subscription name",
+    [SUBS_WATCHED] = "watched videos",
+    [SUBS_UNWATCHED] = "unwatched videos",
+};
+
+static void render_border(
+    struct list *l, const struct search *s, u8 flags, u8 order)
+{
     enum { BAR = 1, SPACE = 1 };
     const int n = l->n;
     list_box(l);
     int x = 0;
     x -= (int)int_digits(n) + 3 * SPACE;
     list_write_title(l, x, " %d ", n);
+    if(order) {
+        const char cs[] = {0, 'i', 'w', 'u'};
+        assert(order < sizeof(cs));
+        const char c = cs[order];
+        x -= 2 + 2 * SPACE;
+        list_write_title(l, x, " O:%c ", flags & ORDER_DESC ? toupper(c) : c);
+    }
     if(!search_is_active(s))
         return;
     const struct buffer search = s->b;
@@ -90,7 +115,7 @@ static void build_query_count(
 }
 
 static void build_query_list(
-    int tag, int type, u8 global_flags, u8 flags, struct buffer *b)
+    int tag, int type, u8 global_flags, u8 flags, u8 order, struct buffer *b)
 {
     buffer_append_str(b,
         "select"
@@ -100,7 +125,28 @@ static void build_query_list(
         " from subs"
         " left outer join videos on subs.id == videos.sub");
     build_query_common(tag, type, global_flags, flags, b);
-    --b->n, buffer_append_str(b, " group by subs.id order by subs.name");
+    --b->n, buffer_append_str(b, " group by subs.id");
+    --b->n, buffer_append_str(b, " order by ");
+    --b->n;
+    switch(order) {
+    case SUBS_NAME: buffer_append_str(b, "subs.name"); break;
+    case SUBS_ID: buffer_append_str(b, "subs.id"); break;
+    case SUBS_WATCHED:
+        buffer_append_str(b,
+            "count(case when videos.watched then 1 else null end)");
+        break;
+    case SUBS_UNWATCHED:
+        buffer_append_str(b,
+            "count(case when not videos.watched then 1 else null end)");
+        break;
+    }
+    if(flags & ORDER_DESC)
+        --b->n, buffer_append_str(b, " desc");
+    switch(order) {
+    case SUBS_WATCHED:
+    case SUBS_UNWATCHED:
+        --b->n, buffer_append_str(b, ", subs.name");
+    }
 }
 
 static bool populate(
@@ -129,12 +175,35 @@ end:
     return (sqlite3_finalize(stmt) == SQLITE_OK) && ret;
 }
 
+static enum subs_curses_key input_menu(struct subs_bar *b, int c) {
+    struct menu *const m = &b->menu;
+    switch(c) {
+    case ERR:
+        return false;
+    default:
+        return menu_input(m, c) ? true : KEY_IGNORED;
+    case '\n': {
+        const u8 order = (u8)menu_current(m);
+        menu_destroy(m);
+        m->m = NULL;
+        return subs_bar_set_order(b, order);
+    }
+    case ESC:
+    case 'q':
+        menu_destroy(m);
+        m->m = NULL;
+        list_redraw(&b->list);
+        list_refresh(&b->list);
+        return true;
+    }
+}
+
 static enum subs_curses_key input_search(struct subs_bar *b, int c) {
     struct search *const s = &b->search;
     struct list *const l = &b->list;
     const enum subs_curses_key ret = list_search_input(s, l, c);
     if(ret == KEY_HANDLED) {
-        render_border(l, s);
+        render_border(l, s, b->flags, b->order);
         list_refresh(l);
     }
     return ret;
@@ -184,6 +253,18 @@ err0:
     return ret;
 }
 
+static void show_ordering_menu(struct subs_bar *b) {
+    enum { n = ARRAY_SIZE(MENU_OPTIONS) };
+    struct menu *const m = &b->menu;
+    subs_menu_init(
+        m, b->list.sub, n,
+        b->flags & ORDER_DESC ? "Order by (desc.):" : "Order by:",
+        MENU_OPTIONS, MENU_DESC);
+    menu_set_current(m, b->order);
+    menu_display(m);
+    menu_refresh(m);
+}
+
 void subs_bar_toggle_watched(struct subs_bar *b) {
     if((b->flags ^= WATCHED))
         b->flags = (u8)((unsigned)b->flags & ~(unsigned)NOT_WATCHED);
@@ -207,6 +288,12 @@ void subs_bar_set_tag(struct subs_bar *b, int t) {
 void subs_bar_set_type(struct subs_bar *b, int t) {
     clear_selection(b);
     b->type = t;
+}
+
+// TODO delay reload
+bool subs_bar_set_order(struct subs_bar *b, u8 o) {
+    b->order = o;
+    return subs_bar_reload(b);
 }
 
 bool subs_bar_next(struct subs_bar *b) {
@@ -245,7 +332,7 @@ bool subs_bar_reload(struct subs_bar *b) {
     if(n && !items)
         goto err0;
     sql.n = 0;
-    build_query_list(tag, type, global_flags, flags, &sql);
+    build_query_list(tag, type, global_flags, flags, b->order, &sql);
     if(!populate(db, sql.p, sql.n - 1, param, width - 4, lines, items))
         goto err1;
     if(!list_init(&b->list, NULL, n, lines, b->x, b->y, width, LINES - b->y))
@@ -253,7 +340,7 @@ bool subs_bar_reload(struct subs_bar *b) {
     free(sql.p);
     b->items = items;
     b->width = width;
-    render_border(&b->list, &b->search);
+    render_border(&b->list, &b->search, b->flags, b->order);
     list_refresh(&b->list);
     return true;
 err1:
@@ -267,18 +354,24 @@ err0:
 }
 
 void subs_bar_destroy(struct subs_bar *b) {
+    if(b->menu.m)
+        menu_destroy(&b->menu);
     list_destroy(&b->list);
     free(b->items);
     free(b->search.b.p);
 }
 
 bool subs_bar_leave(void *data) {
-    list_set_active(&((struct subs_bar*)data)->list, false);
+    struct subs_bar *b = data;
+    if(!b->menu.m)
+        list_set_active(&((struct subs_bar*)data)->list, false);
     return true;
 }
 
 bool subs_bar_enter(void *data) {
-    list_set_active(&((struct subs_bar*)data)->list, true);
+    struct subs_bar *const b = data;
+    if(!b->menu.m)
+        list_set_active(&b->list, true);
     curs_set(0);
     return true;
 }
@@ -292,14 +385,24 @@ void subs_bar_redraw(void *data) {
 
 enum subs_curses_key subs_bar_input(void *data, int c) {
     struct subs_bar *b = data;
+    if(b->menu.m)
+        return input_menu(b, c);
     if(search_is_input_active(&b->search))
         return input_search(b, c);
     switch(c) {
     case '\n': return select_item(b, b->list.i);
     case '/':
         search_reset(&b->search);
-        render_border(&b->list, &b->search);
+        render_border(&b->list, &b->search, b->flags, b->order);
         list_refresh(&b->list);
+        break;
+    case 'O':
+        show_ordering_menu(b);
+        return true;
+    case 'R':
+        b->flags ^= ORDER_DESC;
+        if(!subs_bar_reload(b))
+            return false;
         break;
     case 'n':
         if(!search_is_empty(&b->search))
