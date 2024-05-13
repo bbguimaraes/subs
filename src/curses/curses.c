@@ -284,6 +284,8 @@ bool subs_start_tui(const struct subs *s) {
     while(!(sc.flags & QUIT)) {
         const struct input_event e = input_process();
         switch(e.type) {
+        case INPUT_TYPE_QUIT:
+            ret = true; /* fallthrough */
         case INPUT_TYPE_ERR:
             goto end;
         case INPUT_TYPE_KEY:
