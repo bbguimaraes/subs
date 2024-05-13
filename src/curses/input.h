@@ -18,11 +18,12 @@ struct input_event {
 };
 
 struct input {
-    int sig_fd;
+    int sig_fd, event_r, event_w;
 };
 
 bool input_init(struct input *i);
 bool input_destroy(struct input *i);
 struct input_event input_process(const struct input *i);
+bool input_send_event(struct input *i, struct input_event e);
 
 #endif
