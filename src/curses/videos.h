@@ -13,6 +13,7 @@
 #include "list.h"
 #include "search.h"
 
+struct input;
 struct window;
 
 enum videos_flags {
@@ -21,7 +22,10 @@ enum videos_flags {
 };
 
 struct videos {
+    sqlite3 *db;
     struct subs_curses *s;
+    struct input *input;
+    struct task_thread *task_thread;
     int *items;
     struct list list;
     struct search search;
