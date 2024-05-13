@@ -8,6 +8,7 @@
 #include "../subs.h"
 #include "../util.h"
 
+#include "input.h"
 #include "source.h"
 #include "subs.h"
 #include "videos.h"
@@ -91,7 +92,7 @@ static enum subs_curses_key process_key(
     struct subs_curses *sc, struct source_bar *source_bar,
     struct subs_bar *subs_bar, struct videos *videos, int c);
 
-static bool input_process(
+static bool process_input(
     struct subs_curses *sc, struct source_bar *source_bar,
     struct subs_bar *subs_bar, struct videos *videos, int c)
 {
@@ -281,11 +282,15 @@ bool subs_start_tui(const struct subs *s) {
         goto end;
     window_enter(&sc, &windows[sc.cur_window]);
     while(!(sc.flags & QUIT)) {
-        const int c = getch();
-        if(c == ERR)
-            break;
-        if(!input_process(&sc, &source_bar, &subs_bar, &videos, c))
+        const struct input_event e = input_process();
+        switch(e.type) {
+        case INPUT_TYPE_ERR:
             goto end;
+        case INPUT_TYPE_KEY:
+            if(!process_input(&sc, &source_bar, &subs_bar, &videos, e.key))
+                goto end;
+            break;
+        }
         if(!resize(&sc, &source_bar, &subs_bar, &videos))
             goto end;
         process_log();

@@ -1,5 +1,9 @@
 #include "unix.h"
 
+#include <assert.h>
+#include <errno.h>
+
+#include <alloca.h>
 #include <sys/wait.h>
 
 #include "log.h"
@@ -81,4 +85,37 @@ bool wait_for_pid(pid_t pid) {
     }
     LOG_ERR("waitpid: unknown status: 0x%x\n", status);
     return false;
+}
+
+enum input_result poll_input(nfds_t n, const int fds[static n], int *fd) {
+    struct pollfd *const v = alloca(n * sizeof(*v));
+    for(nfds_t i = 0; i != n; ++i)
+        v[i] = (struct pollfd){.events = POLLIN, .fd = fds[i]};
+    enum input_result ret = -1;
+retry: ;
+    int n_events = poll(v, n, -1);
+    if(n_events == -1) {
+        if(errno == EINTR)
+            goto retry;
+        return LOG_ERRNO("poll", 0), INPUT_ERR;
+    }
+    for(size_t i = 0; n_events; ++i) {
+        assert(i < n);
+        const short revents = v[i].revents;
+        if(!revents)
+            continue;
+        --n_events;
+        v[i].revents = 0;
+        if(revents & POLLERR) {
+            LOG_ERR("poll: POLLERR: %d\n", v[i].fd);
+            ret = INPUT_ERR;
+        } else if(revents & POLLIN)
+            *fd = v[i].fd, ret = INPUT_FD;
+        else if(revents & POLLHUP) {
+            if(ret != INPUT_ERR)
+                *fd = v[i].fd, ret = INPUT_CLOSED;
+        }
+    }
+    assert((int)ret != -1);
+    return ret;
 }
