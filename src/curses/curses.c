@@ -6,6 +6,7 @@
 
 #include "../log.h"
 #include "../subs.h"
+#include "../task.h"
 #include "../unix.h"
 #include "../util.h"
 
@@ -140,6 +141,12 @@ static bool process_key(
     return true;
 }
 
+static bool task_error(void *p) {
+    return input_send_event(p, (struct input_event) {
+        .type = INPUT_TYPE_ERR,
+    });
+}
+
 bool query_to_int(
     sqlite3 *db, const char *sql, size_t len, const int *param, int *p)
 {
@@ -255,6 +262,12 @@ bool subs_start_tui(const struct subs *s) {
     struct input input = {0};
     if(!input_init(&input))
         goto end;
+    struct task_thread task_thread = {
+        .data = &input,
+        .error_f = task_error,
+    };
+    if(!task_thread_init(&task_thread))
+        goto end;
     window_enter(&sc, &windows[SOURCE_BAR_IDX]);
     while(!(sc.flags & QUIT)) {
         const struct input_event e = input_process(&input);
@@ -270,6 +283,10 @@ bool subs_start_tui(const struct subs *s) {
             if(!process_key(&sc, &source_bar, &subs_bar, &videos, e.key))
                 goto end;
             break;
+        case INPUT_TYPE_TASK:
+            if(!e.task.f(e.task.p))
+                goto end;
+            break;
         }
         if(!resize(&sc, &source_bar, &subs_bar, &videos))
             goto end;
@@ -280,6 +297,7 @@ end:
     videos_destroy(&videos);
     subs_bar_destroy(&subs_bar);
     source_bar_destroy(&source_bar);
+    ret = task_thread_destroy(&task_thread) && ret;
     ret = input_destroy(&input) && ret;
     cleanup();
     log_set_fn(log_prev);
