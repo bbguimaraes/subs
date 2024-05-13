@@ -4,6 +4,7 @@
 enum input_type {
     INPUT_TYPE_ERR,
     INPUT_TYPE_KEY,
+    INPUT_TYPE_QUIT,
 };
 
 struct input_event {
