@@ -8,6 +8,7 @@
 #include "../subs.h"
 #include "../util.h"
 
+#include "input.h"
 #include "lua.h"
 #include "source.h"
 #include "subs.h"
@@ -86,7 +87,7 @@ static bool resize(
         && videos_resize(videos);
 }
 
-static bool input_process(
+static bool process_key(
     struct subs_curses *sc, struct source_bar *source_bar,
     struct subs_bar *subs_bar, struct videos *videos, int c)
 {
@@ -249,11 +250,15 @@ bool subs_start_tui(const struct subs *s) {
         goto end;
     window_enter(&sc, &windows[SOURCE_BAR_IDX]);
     while(!(sc.flags & QUIT)) {
-        const int c = getch();
-        if(c == ERR)
-            break;
-        if(!input_process(&sc, &source_bar, &subs_bar, &videos, c))
+        const struct input_event e = input_process();
+        switch(e.type) {
+        case INPUT_TYPE_ERR:
             goto end;
+        case INPUT_TYPE_KEY:
+            if(!process_key(&sc, &source_bar, &subs_bar, &videos, e.key))
+                goto end;
+            break;
+        }
         if(!resize(&sc, &source_bar, &subs_bar, &videos))
             goto end;
         process_log();
