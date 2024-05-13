@@ -132,6 +132,10 @@ enum subs_curses_key process_key(
             && videos_reload(videos);
     case 'W':
         return toggle_not_watched(sc);
+    case ESC:
+    case 'q':
+        sc->flags |= QUIT;
+        break;
     case 'w':
         return toggle_watched(sc);
     case KEY_BTAB:
@@ -276,7 +280,10 @@ bool subs_start_tui(const struct subs *s) {
     if(!resize(&sc, &source_bar, &subs_bar, &videos))
         goto end;
     window_enter(&sc, &windows[sc.cur_window]);
-    for(int c; c = getch(), c != ERR && c != ESC && c != 'q';) {
+    while(!(sc.flags & QUIT)) {
+        const int c = getch();
+        if(c == ERR)
+            break;
         if(!input_process(&sc, &source_bar, &subs_bar, &videos, c))
             goto end;
         if(!resize(&sc, &source_bar, &subs_bar, &videos))
