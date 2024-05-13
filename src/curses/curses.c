@@ -227,7 +227,10 @@ bool subs_start_tui(const struct subs *s) {
     log_prev = log_set_fn(curses_log_fn);
     init();
     struct subs_curses sc = {.db = s->db, .L = s->L, .flags = RESIZED};
-    struct videos videos = {.s = &sc};
+    struct videos videos = {
+        .s = &sc,
+        .db = subs_new_db_connection(s),
+    };
     struct subs_bar subs_bar = {.s = &sc, .videos = &videos};
     struct source_bar source_bar = {
         .s = &sc,
@@ -266,12 +269,14 @@ bool subs_start_tui(const struct subs *s) {
     struct input input = {0};
     if(!input_init(&input))
         goto end;
+    videos.input = &input;
     struct task_thread task_thread = {
         .data = &input,
         .error_f = task_error,
     };
     if(!task_thread_init(&task_thread))
         goto end;
+    videos.task_thread = &task_thread;
     window_enter(&sc, &windows[sc.cur_window]);
     while(!(sc.flags & QUIT)) {
         const struct input_event e = input_process(&input);
