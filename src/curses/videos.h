@@ -13,13 +13,18 @@
 #include "window/list.h"
 #include "search.h"
 
+struct input;
+
 enum videos_flags {
     VIDEOS_ACTIVE        = 1u << 0,
     VIDEOS_UNTAGGED      = 1u << 1,
 };
 
 struct videos {
+    sqlite3 *db;
     struct subs_curses *s;
+    struct input *input;
+    struct task_thread *task_thread;
     int *items;
     struct list list;
     struct search search;

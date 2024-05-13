@@ -8,8 +8,10 @@
 #include "../buffer.h"
 #include "../log.h"
 #include "../subs.h"
+#include "../task.h"
 
 #include "curses.h"
+#include "input.h"
 
 #include "window/list_search.h"
 
@@ -18,6 +20,18 @@
         " videos.id, subs.type, videos.watched," \
         " subs.name, videos.title," \
         " videos.timestamp, videos.duration_seconds"
+
+static bool reload(void *d);
+struct reload_data {
+    struct videos *v;
+    struct buffer sql;
+    u8 global_flags, flags;
+    // reload_finish
+    char **lines;
+    int *items;
+    int n, tag, sub, type;
+};
+static bool reload_finish(void *d);
 
 static void clear_selection(struct videos *v) {
     v->tag = v->type = v->sub = 0;
@@ -368,6 +382,72 @@ static void build_query_list(
     --b->n, buffer_append_str(b, " order by videos.timestamp, videos.id");
 }
 
+static bool reload(void *p) {
+    struct reload_data *const d = p;
+    struct videos *const v = d->v;
+    const u8 global_flags = d->global_flags, flags = d->flags;
+    const int tag = d->tag, type = d->type, sub = d->sub;
+    const int *const param = tag ? &tag : type ? &type : sub ? &sub : NULL;
+    sqlite3 *const db = v->db;
+    struct buffer sql = {0};
+    build_query_count(tag, type, sub, global_flags, flags, &sql);
+    int n = 0;
+    if(!query_to_int(db, sql.p, sql.n - 1, param, &n))
+        goto err0;
+    char **lines = calloc((size_t)n, sizeof(*lines));
+    if(n && !lines)
+        goto err0;
+    int *const items = calloc((size_t)n, sizeof(*items));
+    if(n && !items)
+        goto err1;
+    sql.n = 0;
+    build_query_list(tag, type, sub, global_flags, flags, &sql);
+    if(!populate(db, sql.p, sql.n - 1, param, lines, items))
+        goto err2;
+    free(d->sql.p);
+    d->n = n;
+    d->lines = lines;
+    d->items = items;
+    if(!input_send_event(v->input, (struct input_event){
+        .type = INPUT_TYPE_TASK,
+        .task = {.f = reload_finish, .p = d},
+    })) {
+        LOG_ERR("input_post_task_result", 0);
+        goto err3;
+    }
+    return true;
+err3:
+    free(d);
+err2:
+    free(items);
+err1:
+    for(char **p = lines; *p; ++p)
+        free(*p);
+    free(lines);
+err0:
+    free(sql.p);
+    return false;
+}
+
+static bool reload_finish(void *p) {
+    const struct reload_data d = *(struct reload_data*)p;
+    free(p);
+    struct videos *const v = d.v;
+    struct list *const l = &v->list;
+    if(!list_init(l, NULL, d.n, d.lines, v->x, v->y, v->width, LINES))
+        goto err;
+    render_border(l, v);
+    v->n = d.n;
+    v->items = d.items;
+    v->tag = d.tag;
+    list_refresh(l);
+    return true;
+err:
+    free(d.lines);
+    free(d.items);
+    return false;
+}
+
 void videos_destroy(struct videos *v) {
     list_destroy(&v->list);
     free(v->items);
@@ -437,47 +517,26 @@ bool videos_reload(struct videos *v) {
     struct list *const l = &v->list;
     free(v->items);
     v->items = NULL;
-    if(~v->flags & VIDEOS_ACTIVE) {
-        if(!list_init(l, NULL, 0, NULL, v->x, v->y, v->width, LINES))
-            return false;
-        list_refresh(l);
-        return true;
-    }
-    sqlite3 *const db = v->s->db;
-    const int tag = v->tag, type = v->type, sub = v->sub;
-    const int *const param = tag ? &tag : type ? &type : sub ? &sub : NULL;
-    const u8 global_flags = v->s->flags, flags = v->flags;
-    struct buffer sql = {0};
-    build_query_count(tag, type, sub, global_flags, flags, &sql);
-    int n = 0;
-    if(!query_to_int(db, sql.p, sql.n - 1, param, &n))
-        goto err0;
-    char **lines = calloc((size_t)n, sizeof(*lines));
-    if(n && !lines)
-        goto err0;
-    int *const items = calloc((size_t)n, sizeof(*items));
-    if(n && !items)
-        goto err1;
-    sql.n = 0;
-    build_query_list(tag, type, sub, global_flags, flags, &sql);
-    if(!populate(db, sql.p, sql.n - 1, param, lines, items))
-        goto err2;
-    if(!list_init(l, NULL, n, lines, v->x, v->y, v->width, LINES))
-        goto err2;
-    render_border(l, v);
-    free(sql.p);
-    v->n = n;
-    v->items = items;
-    v->tag = tag;
+    if(!list_init(l, NULL, 0, NULL, v->x, v->y, v->width, LINES))
+        return false;
     list_refresh(l);
+    if(~v->flags & VIDEOS_ACTIVE)
+        return true;
+    struct reload_data *const d = checked_malloc(sizeof(*d));
+    if(!d)
+        return false;
+    *d = (struct reload_data) {
+        .v = v,
+        .global_flags = v->s->flags,
+        .flags = v->flags,
+        .tag = v->tag,
+        .type = v->type,
+        .sub = v->sub,
+    };
+    if(!task_thread_send(v->s->task_thread, (struct task){.f = reload, .p = d}))
+        goto err;
     return true;
-err2:
-    free(items);
-err1:
-    for(char **p = lines; *p; ++p)
-        free(*p);
-    free(lines);
-err0:
-    free(sql.p);
+err:
+    free(d);
     return false;
 }

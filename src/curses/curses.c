@@ -265,8 +265,18 @@ bool subs_start_tui(const struct subs *s) {
         return log_errno("setlocale"), false;
     log_prev = log_set_fn(curses_log_fn);
     init();
-    struct subs_curses sc = {.db = s->db, .L = s->L, .flags = RESIZED};
-    struct videos videos = {.s = &sc};
+    struct subs_curses sc = {
+        .db = s->db,
+        .L = s->L,
+        .flags = RESIZED,
+        .task_thread = &task_thread,
+    };
+    struct videos videos = {
+        .s = &sc,
+        .db = subs_new_db_connection(s),
+        .input = &input,
+        .task_thread = &task_thread,
+    };
     struct subs_bar subs_bar = {.s = &sc, .videos = &videos};
     struct source_bar source_bar = {
         .s = &sc,
