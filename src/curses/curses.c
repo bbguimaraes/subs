@@ -118,6 +118,10 @@ static bool input_process(
         source_bar_update_title(source_bar);
         return subs_bar_reload(subs_bar)
             && videos_reload(videos);
+    case ESC:
+    case 'q':
+        sc->flags |= QUIT;
+        break;
     case 'w':
         if((sc->flags = (u8)(sc->flags ^ WATCHED)) & WATCHED)
             sc->flags = (u8)(sc->flags & ~NOT_WATCHED);
@@ -247,7 +251,10 @@ bool subs_start_tui(const struct subs *s) {
     if(!resize(&sc, &source_bar, &subs_bar, &videos))
         goto end;
     window_enter(&sc, &windows[sc.cur_window]);
-    for(int c; c = getch(), c != ERR && c != ESC && c != 'q';) {
+    while(!(sc.flags & QUIT)) {
+        const int c = getch();
+        if(c == ERR)
+            break;
         if(!input_process(&sc, &source_bar, &subs_bar, &videos, c))
             goto end;
         if(!resize(&sc, &source_bar, &subs_bar, &videos))
