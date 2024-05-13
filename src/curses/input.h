@@ -3,10 +3,13 @@
 
 #include <stdbool.h>
 
+#include "../task.h"
+
 enum input_type {
     INPUT_TYPE_ERR,
     INPUT_TYPE_KEY,
     INPUT_TYPE_RESIZE,
+    INPUT_TYPE_TASK,
     INPUT_TYPE_QUIT,
 };
 
@@ -14,6 +17,7 @@ struct input_event {
     enum input_type type;
     union {
         int key;
+        struct task task;
     };
 };
 
