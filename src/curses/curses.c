@@ -118,7 +118,6 @@ static bool process_key(
         source_bar_update_title(source_bar);
         return subs_bar_reload(subs_bar)
             && videos_reload(videos);
-    case ESC:
     case 'q':
         sc->flags |= QUIT;
         break;
@@ -252,6 +251,8 @@ bool subs_start_tui(const struct subs *s) {
     while(!(sc.flags & QUIT)) {
         const struct input_event e = input_process();
         switch(e.type) {
+        case INPUT_TYPE_QUIT:
+            ret = true; /* fallthrough */
         case INPUT_TYPE_ERR:
             goto end;
         case INPUT_TYPE_KEY:
