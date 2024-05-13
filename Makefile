@@ -35,6 +35,7 @@ subs: \
 	src/lua.o \
 	src/main.o \
 	src/subs.o \
+	src/task.o \
 	src/update.o \
 	src/update_lbry.o \
 	src/update_youtube.o \
@@ -74,6 +75,7 @@ tests/subs: \
 	src/lua.o \
 	src/os.o \
 	src/subs.o \
+	src/task.o \
 	src/update.o \
 	src/update_lbry.o \
 	src/update_youtube.o \

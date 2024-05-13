@@ -6,6 +6,7 @@
 
 #include "../log.h"
 #include "../subs.h"
+#include "../task.h"
 #include "../unix.h"
 #include "../util.h"
 
@@ -152,6 +153,12 @@ enum subs_curses_key process_key(
     return true;
 }
 
+static bool task_error(void *p) {
+    return input_send_event(p, (struct input_event) {
+        .type = INPUT_TYPE_ERR,
+    });
+}
+
 bool query_to_int(
     sqlite3 *db, const char *sql, size_t len, const int *param, int *p)
 {
@@ -244,6 +251,16 @@ void resume_tui(void) {
 }
 
 bool subs_start_tui(const struct subs *s) {
+    bool ret = false;
+    struct input input = {0};
+    if(!input_init(&input))
+        goto end;
+    struct task_thread task_thread = {
+        .data = &input,
+        .error_f = task_error,
+    };
+    if(!task_thread_init(&task_thread))
+        goto end;
     if(!setlocale(LC_ALL, ""))
         return log_errno("setlocale"), false;
     log_prev = log_set_fn(curses_log_fn);
@@ -282,11 +299,7 @@ bool subs_start_tui(const struct subs *s) {
     sc.windows = windows;
     sc.n_windows = ARRAY_SIZE(windows);
     init_lua(s->L, &videos);
-    bool ret = false;
     if(!resize(&sc, &source_bar, &subs_bar, &videos))
-        goto end;
-    struct input input = {0};
-    if(!input_init(&input))
         goto end;
     window_enter(&sc, &windows[sc.cur_window]);
     while(!(sc.flags & QUIT)) {
@@ -303,6 +316,10 @@ bool subs_start_tui(const struct subs *s) {
             if(!process_input(&sc, &source_bar, &subs_bar, &videos, e.key))
                 goto end;
             break;
+        case INPUT_TYPE_TASK:
+            if(!e.task.f(e.task.p))
+                goto end;
+            break;
         }
         if(!resize(&sc, &source_bar, &subs_bar, &videos))
             goto end;
@@ -313,6 +330,7 @@ end:
     videos_destroy(&videos);
     subs_bar_destroy(&subs_bar);
     source_bar_destroy(&source_bar);
+    ret = task_thread_destroy(&task_thread) && ret;
     ret = input_destroy(&input) && ret;
     cleanup();
     log_set_fn(log_prev);

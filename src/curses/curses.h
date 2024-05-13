@@ -12,11 +12,13 @@
 
 typedef struct lua_State lua_State;
 
+struct task_thread;
 struct videos;
 
 struct subs_curses {
     sqlite3 *db;
     lua_State *L;
+    struct task_thread *task_thread;
     struct window *windows;
     size_t n_windows, cur_window;
     u8 flags;
