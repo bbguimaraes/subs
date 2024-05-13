@@ -6,6 +6,7 @@
 
 #include "../log.h"
 #include "../subs.h"
+#include "../unix.h"
 #include "../util.h"
 
 #include "input.h"
@@ -78,6 +79,10 @@ static bool resize(
     if(!(sc->flags & RESIZED))
         return true;
     sc->flags = (u8)(sc->flags & ~RESIZED);
+    int x, y;
+    if(!get_terminal_size(&x, &y))
+        return false;
+    resizeterm(y, x);
     clear();
     refresh();
     return source_bar_update_count(source_bar)
@@ -280,14 +285,20 @@ bool subs_start_tui(const struct subs *s) {
     bool ret = false;
     if(!resize(&sc, &source_bar, &subs_bar, &videos))
         goto end;
+    struct input input = {0};
+    if(!input_init(&input))
+        goto end;
     window_enter(&sc, &windows[sc.cur_window]);
     while(!(sc.flags & QUIT)) {
-        const struct input_event e = input_process();
+        const struct input_event e = input_process(&input);
         switch(e.type) {
         case INPUT_TYPE_QUIT:
             ret = true; /* fallthrough */
         case INPUT_TYPE_ERR:
             goto end;
+        case INPUT_TYPE_RESIZE:
+            sc.flags = (u8)(sc.flags | RESIZED);
+            break;
         case INPUT_TYPE_KEY:
             if(!process_input(&sc, &source_bar, &subs_bar, &videos, e.key))
                 goto end;
@@ -302,6 +313,7 @@ end:
     videos_destroy(&videos);
     subs_bar_destroy(&subs_bar);
     source_bar_destroy(&source_bar);
+    ret = input_destroy(&input) && ret;
     cleanup();
     log_set_fn(log_prev);
     if(log_pos)

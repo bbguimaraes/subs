@@ -4,6 +4,8 @@
 #include <errno.h>
 
 #include <alloca.h>
+#include <sys/ioctl.h>
+#include <sys/signalfd.h>
 #include <sys/wait.h>
 
 #include "log.h"
@@ -30,6 +32,34 @@ bool setup_bidirectional_pipe(int *r0, int *w0, int *r1, int *w1) {
     }
     *r0 = tmp_r0, *w0 = tmp_w0;
     *r1 = tmp_r1, *w1 = tmp_w1;
+    return true;
+}
+
+sigset_t make_signal_mask(int s, ...) {
+    sigset_t ret;
+    sigemptyset(&ret);
+    va_list args;
+    va_start(args, s);
+    for(; s; s = va_arg(args, int))
+        sigaddset(&ret, s);
+    va_end(args);
+    return ret;
+}
+
+int setup_signalfd(sigset_t mask) {
+    if(sigprocmask(SIG_BLOCK, &mask, NULL) == -1)
+        return LOG_ERRNO("sigprocmask", 0), -1;
+    const int ret = signalfd(-1, &mask, 0);
+    if(ret == -1)
+        LOG_ERRNO("signalfd", 0);
+    return ret;
+}
+
+bool process_signalfd(int fd) {
+    struct signalfd_siginfo i;
+    const ssize_t n = read(fd, &i, sizeof(i));
+    if(n != sizeof(i))
+        return LOG_ERRNO("read", 0), false;
     return true;
 }
 
@@ -85,6 +115,15 @@ bool wait_for_pid(pid_t pid) {
     }
     LOG_ERR("waitpid: unknown status: 0x%x\n", status);
     return false;
+}
+
+bool get_terminal_size(int *x, int *y) {
+    struct winsize size;
+    if(ioctl(0, TIOCGWINSZ, &size) == -1)
+        return LOG_ERRNO("ioctl(TIOCGWINSZ)", 0), false;
+    *x = size.ws_col;
+    *y = size.ws_row;
+    return true;
 }
 
 enum input_result poll_input(nfds_t n, const int fds[static n], int *fd) {
