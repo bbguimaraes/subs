@@ -9,8 +9,6 @@
 #include "../unix.h"
 #include "../util.h"
 
-#define EVENT(...) (struct input_event){ .type = INPUT_TYPE_ ## __VA_ARGS__ }
-
 enum {
     ESC = 0x1b,
 };
