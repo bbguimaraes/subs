@@ -221,6 +221,11 @@ bool change_window(struct subs_curses *s, size_t i) {
         && window_enter(s, &v[i]);
 }
 
+bool add_message(struct subs_curses *s, const char *msg) {
+    char **const p = message_push(s->priv, NULL);
+    return p && (*p = strdup(msg));
+}
+
 void suspend_tui(void) {
     def_prog_mode();
     endwin();
@@ -237,7 +242,12 @@ bool subs_start_tui(const struct subs *s) {
     log_prev = log_set_fn(curses_log_fn);
     init();
     struct message message = {0};
-    struct subs_curses sc = {.db = s->db, .L = s->L, .flags = RESIZED};
+    struct subs_curses sc = {
+        .db = s->db,
+        .L = s->L,
+        .flags = RESIZED,
+        .priv = &message,
+    };
     struct videos videos = {
         .s = &sc,
         .db = subs_new_db_connection(s),
