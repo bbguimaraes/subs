@@ -12,6 +12,7 @@
 
 #include "const.h"
 #include "def.h"
+#include "log.h"
 
 #define MIN(x, y) ((y) < (x) ? (y) : (x))
 #define MAX(x, y) ((y) > (x) ? (y) : (x))
@@ -23,6 +24,10 @@
     for(type *var = array; var != (array) + ARRAY_SIZE(array); ++var)
 #define FOR_EACH(type, var, init) for(type *var = (init); *var; ++var)
 
+static void *checked_calloc(size_t n, size_t s);
+static bool checked_calloc_p(size_t n, size_t s, void **p);
+static bool checked_realloc(size_t s, void **p);
+
 static size_t strlen_utf8(const char *s);
 static size_t strlcpy(char *restrict dst, const char *restrict src, size_t n);
 static i64 parse_i64(const char *s);
@@ -30,6 +35,28 @@ char *sprintf_alloc(const char *restrict fmt, ...);
 char *vsprintf_alloc(const char *restrict fmt, va_list args);
 bool join_path(char v[static SUBS_MAX_PATH], int n, ...);
 bool file_exists(const char *name);
+
+static inline void *checked_calloc(size_t n, size_t s) {
+    void *ret = NULL;
+    checked_calloc_p(n, s, &ret);
+    return ret;
+}
+
+static inline bool checked_calloc_p(size_t n, size_t s, void **p) {
+    void *const ret = calloc(n, s);
+    if(!ret)
+        return LOG_ERRNO("calloc", 0), false;
+    *p = ret;
+    return true;
+}
+
+static inline bool checked_realloc(size_t s, void **p) {
+    void *const ret = realloc(*p, s);
+    if(!ret)
+        return LOG_ERRNO("realloc", 0), false;
+    *p = ret;
+    return true;
+}
 
 static inline size_t strlen_utf8(const char *s) {
     size_t ret = 0;
