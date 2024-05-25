@@ -21,8 +21,8 @@ struct buffer {
 
 static struct buffer buffer_new(size_t size);
 static void buffer_destroy(struct buffer *b);
-static void buffer_reserve(struct buffer *b, size_t n);
-static void buffer_resize(struct buffer *b, size_t n);
+static bool buffer_reserve(struct buffer *b, size_t n);
+static bool buffer_resize(struct buffer *b, size_t n);
 static void buffer_append(struct buffer *b, const void *s, size_t n);
 static void buffer_append_str(struct buffer *b, const char *s);
 void buffer_printf(struct buffer *b, const char *restrict fmt, ...);
@@ -36,17 +36,21 @@ static inline void buffer_destroy(struct buffer *b) {
     *b = (struct buffer){0};
 }
 
-static inline void buffer_reserve(struct buffer *b, size_t n) {
+static inline bool buffer_reserve(struct buffer *b, size_t n) {
     size_t cap = b->cap ? b->cap : 1;
     while(cap < n)
         cap *= 2;
-    b->p = realloc(b->p, cap);
+    if(!checked_realloc(cap, &b->p))
+        return false;
     b->cap = cap;
+    return true;
 }
 
-static inline void buffer_resize(struct buffer *b, size_t n) {
-    buffer_reserve(b, n);
+static inline bool buffer_resize(struct buffer *b, size_t n) {
+    if(!buffer_reserve(b, n))
+        return false;
     b->n = n;
+    return true;
 }
 
 static inline void buffer_append(struct buffer *b, const void *p, size_t n) {
