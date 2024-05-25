@@ -22,6 +22,7 @@ struct subs_curses {
     struct window *windows;
     size_t n_windows, cur_window;
     u8 flags;
+    void *priv;
 };
 
 struct window {
@@ -39,6 +40,7 @@ bool query_to_int(
 char *name_with_counts(
     int width, const char *prefix, const char *title, int n0, int n1);
 bool change_window(struct subs_curses *s, size_t i);
+bool add_message(struct subs_curses *s, const char *msg);
 bool toggle_watched(struct subs_curses *s);
 bool toggle_not_watched(struct subs_curses *s);
 void suspend_tui(void);

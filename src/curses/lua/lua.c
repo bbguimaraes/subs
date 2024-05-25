@@ -64,6 +64,15 @@ static int shell_mode_close(lua_State *L) {
     return 0;
 }
 
+static int add_message_lua(lua_State *L) {
+    if(!add_message(
+        *(struct subs_curses**)lua_touserdata(L, 1),
+        lua_tostring(L, 2)
+    ))
+        luaL_error(L, "failed to add message");
+    return 0;
+}
+
 static int videos_cur_item(lua_State *L) {
     struct videos *const v = *(struct videos**)lua_touserdata(L, 1);
     lua_pushinteger(L, v->items[v->list.i]);
@@ -117,6 +126,8 @@ static void init_meta(lua_State *L, struct videos *videos) {
     lua_setfield(L, -2, "KEY_HANDLED");
     lua_pushinteger(L, KEY_IGNORED);
     lua_setfield(L, -2, "KEY_IGNORED");
+    lua_pushcfunction(L, add_message_lua);
+    lua_setfield(L, -2, "add_message");
     init_videos(L, videos);
     lua_setfield(L, -2, "videos");
     luaL_newmetatable(L, "shell_mode");

@@ -17,9 +17,15 @@
 #include "videos.h"
 #include "lua/lua.h"
 
+#define P(s) ((struct private*)(s)->priv)
+
 static char log[4096];
 static size_t log_pos;
 static log_fn *log_prev;
+
+struct private {
+    struct message *message;
+};
 
 static void curses_log_fn(const char *fmt, va_list args) {
     const int n = vsnprintf(log + log_pos, sizeof(log) - log_pos, fmt, args);
@@ -241,6 +247,11 @@ bool change_window(struct subs_curses *s, size_t i) {
         && window_enter(s, &v[i]);
 }
 
+bool add_message(struct subs_curses *s, const char *msg) {
+    char **const p = message_push(P(s)->message, NULL);
+    return p && (*p = strdup(msg));
+}
+
 // XXX delay reload
 bool toggle_watched(struct subs_curses *s) {
     if((s->flags = (u8)(s->flags ^ WATCHED)) & WATCHED)
@@ -286,11 +297,15 @@ bool subs_start_tui(const struct subs *s) {
     log_prev = log_set_fn(curses_log_fn);
     init();
     struct message message = {0};
+    struct private priv = {
+        .message = &message,
+    };
     struct subs_curses sc = {
         .db = s->db,
         .L = s->L,
         .flags = RESIZED,
         .task_thread = &task_thread,
+        .priv = &priv,
     };
     struct videos videos = {
         .s = &sc,
