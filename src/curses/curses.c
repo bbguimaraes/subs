@@ -95,6 +95,7 @@ static bool resize(
         && videos_resize(videos);
 }
 
+static bool process_messages(struct subs_curses *sc, struct message *message);
 static enum subs_curses_key window_input(struct subs_curses *sc, int c);
 static enum subs_curses_key process_key(
     struct subs_curses *sc, struct input *input,
@@ -102,15 +103,29 @@ static enum subs_curses_key process_key(
     struct videos *videos, int c);
 
 static bool process_input(
-    struct subs_curses *sc, struct input *input,struct source_bar *source_bar,
-    struct subs_bar *subs_bar, struct videos *videos, int c)
+    struct subs_curses *sc, struct input *input, struct message *message,
+    struct source_bar *source_bar, struct subs_bar *subs_bar,
+    struct videos *videos, int c)
 {
+    if(process_messages(sc, message))
+        return true;
     switch(window_input(sc, c)) {
     case KEY_ERROR: return false;
     case KEY_HANDLED: return true;
     case KEY_IGNORED: break;
     }
     return process_key(sc, input, source_bar, subs_bar, videos, c);
+}
+
+bool process_messages(struct subs_curses *sc, struct message *message) {
+    if(!message->msg)
+        return false;
+    struct window *const windows = sc->windows;
+    const size_t n = sc->n_windows;
+    message_hide(message);
+    for(size_t i = 0; i != n; ++i)
+        windows[i].redraw(windows[i].data);
+    return true;
 }
 
 enum subs_curses_key window_input(struct subs_curses *sc, int c) {
@@ -330,7 +345,7 @@ bool subs_start_tui(const struct subs *s) {
             break;
         case INPUT_TYPE_KEY:
             if(!process_input(
-                &sc, &input, &source_bar, &subs_bar, &videos, e.key
+                &sc, &input, &message, &source_bar, &subs_bar, &videos, e.key
             ))
                 goto end;
             break;
@@ -341,9 +356,12 @@ bool subs_start_tui(const struct subs *s) {
         }
         if(!resize(&sc, &message, &source_bar, &subs_bar, &videos))
             goto end;
+        if(!message_process(&message))
+            goto end;
         process_log();
     }
 end:
+    message_destroy(&message);
     videos_destroy(&videos);
     subs_bar_destroy(&subs_bar);
     source_bar_destroy(&source_bar);
