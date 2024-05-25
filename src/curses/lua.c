@@ -8,6 +8,7 @@
 #include "../subs.h"
 
 #include "curses.h"
+#include "message.h"
 #include "subs.h"
 #include "source.h"
 #include "videos.h"
@@ -95,8 +96,8 @@ void init_lua(lua_State *L, struct subs_curses *s, struct videos *videos) {
 }
 
 bool calc_pos_lua(
-    lua_State *L, struct source_bar *source_bar, struct subs_bar *subs_bar,
-    struct videos *videos)
+    lua_State *L, struct message *message, struct source_bar *source_bar,
+    struct subs_bar *subs_bar, struct videos *videos)
 {
     const int top = lua_gettop(L);
     lua_pushcfunction(L, subs_lua_msgh);
@@ -108,20 +109,24 @@ bool calc_pos_lua(
     lua_pushinteger(L, LINES);
     lua_pushinteger(L, COLS);
     lua_pushinteger(L, source_bar->n_tags);
-    if(lua_pcall(L, 3, 12, top + 1) != LUA_OK)
+    if(lua_pcall(L, 3, 16, top + 1) != LUA_OK)
         goto end;
-    source_bar->x = (int)lua_tointeger(L, 2);
-    source_bar->y = (int)lua_tointeger(L, 3);
-    source_bar->width = (int)lua_tointeger(L, 4);
-    source_bar->height = (int)lua_tointeger(L, 5);
-    subs_bar->x = (int)lua_tointeger(L, 6);
-    subs_bar->y = (int)lua_tointeger(L, 7);
-    subs_bar->width = (int)lua_tointeger(L, 8);
-    subs_bar->height = (int)lua_tointeger(L, 9);
-    videos->x = (int)lua_tointeger(L,  10);
-    videos->y = (int)lua_tointeger(L,  11);
-    videos->width = (int)lua_tointeger(L, 12);
-    videos->height = (int)lua_tointeger(L, 13);
+    message->x = (int)lua_tointeger(L, 2);
+    message->y = (int)lua_tointeger(L, 3);
+    message->width = (int)lua_tointeger(L, 4);
+    message->height = (int)lua_tointeger(L, 5);
+    source_bar->x = (int)lua_tointeger(L, 6);
+    source_bar->y = (int)lua_tointeger(L, 7);
+    source_bar->width = (int)lua_tointeger(L, 8);
+    source_bar->height = (int)lua_tointeger(L, 9);
+    subs_bar->x = (int)lua_tointeger(L, 10);
+    subs_bar->y = (int)lua_tointeger(L, 11);
+    subs_bar->width = (int)lua_tointeger(L, 12);
+    subs_bar->height = (int)lua_tointeger(L, 13);
+    videos->x = (int)lua_tointeger(L,  14);
+    videos->y = (int)lua_tointeger(L,  15);
+    videos->width = (int)lua_tointeger(L, 16);
+    videos->height = (int)lua_tointeger(L, 17);
     ret = true;
 end:
     lua_settop(L, top);
