@@ -87,8 +87,7 @@ static int items(lua_State *L) {
 }
 
 static void init_videos(lua_State *L, struct videos *videos) {
-    void *const ud = lua_newuserdatauv(L, sizeof(videos), 0);
-    memcpy(ud, &videos, sizeof(videos));
+    memcpy(lua_newuserdatauv(L, sizeof(videos), 0), &videos, sizeof(videos));
     lua_newtable(L);
     lua_pushvalue(L, -1);
     lua_setfield(L, -2, "__index");
@@ -108,8 +107,9 @@ static void init_shell_mode(lua_State *L) {
     lua_setfield(L, -2, "__close");
 }
 
-void init_lua(lua_State *L, struct videos *videos) {
-    lua_newtable(L);
+static void init_meta(lua_State *L, struct videos *videos) {
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -2, "__index");
     lua_pushinteger(L, KEY_ERROR);
     lua_setfield(L, -2, "KEY_ERROR");
     lua_pushinteger(L, KEY_HANDLED);
@@ -121,6 +121,13 @@ void init_lua(lua_State *L, struct videos *videos) {
     luaL_newmetatable(L, "shell_mode");
     init_shell_mode(L);
     lua_setfield(L, -2, "shell_mode");
+}
+
+void init_lua(lua_State *L, struct subs_curses *s, struct videos *videos) {
+    memcpy(lua_newuserdatauv(L, sizeof(s), 0), &s, sizeof(s));
+    lua_newtable(L);
+    init_meta(L, videos);
+    lua_setmetatable(L, -2);
     lua_setglobal(L, "curses");
 }
 

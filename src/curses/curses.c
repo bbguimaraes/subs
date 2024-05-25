@@ -311,7 +311,7 @@ bool subs_start_tui(const struct subs *s) {
     };
     sc.windows = windows;
     sc.n_windows = ARRAY_SIZE(windows);
-    init_lua(s->L, &videos);
+    init_lua(s->L, &sc, &videos);
     if(!resize(&sc, &source_bar, &subs_bar, &videos))
         goto end;
     window_enter(&sc, &windows[sc.cur_window]);
