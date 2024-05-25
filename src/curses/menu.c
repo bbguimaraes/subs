@@ -4,6 +4,8 @@
 
 #include <menu.h>
 
+#include "../util.h"
+
 #include "window/window.h"
 
 #define M(m) ((MENU*)((m)->m))
@@ -12,7 +14,7 @@ void subs_menu_init(
     struct menu *m, struct window *w,
     int n, const char *title, const char **items, const char **desc)
 {
-    ITEM **const c_items = calloc((size_t)n + 1, sizeof(*c_items));
+    ITEM **const c_items = checked_calloc((size_t)n + 1, sizeof(*c_items));
     if(desc)
         for(int i = 0; i != n; ++i)
             c_items[i] = new_item(items[i], desc[i]);

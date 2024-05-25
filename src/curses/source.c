@@ -163,10 +163,10 @@ bool source_bar_reload(struct source_bar *b) {
         return false;
     const int n_special = 2, n_sections = 2, n_types = 2, null_term = 1;
     const int n = n_special + n_sections + n_tags + n_types + null_term;
-    char **lines = calloc((size_t)n, sizeof(*lines));
+    char **const lines = checked_calloc((size_t)n, sizeof(*lines));
     if(!lines)
         goto err0;
-    int *const items = calloc((size_t)n, sizeof(*items));
+    int *const items = checked_calloc((size_t)n, sizeof(*items));
     if(!items)
         goto err0;
     const int text_width = b->width - 4;

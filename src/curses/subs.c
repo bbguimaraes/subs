@@ -325,10 +325,10 @@ bool subs_bar_reload(struct subs_bar *b) {
     build_query_count(tag, type, global_flags, flags, &sql);
     if(!query_to_int(db, sql.p, sql.n - 1, param, &n))
         goto err0;
-    char **lines = calloc((size_t)n + 1, sizeof(*lines));
+    char **const lines = checked_calloc((size_t)n + 1, sizeof(*lines));
     if(!lines)
         goto err0;
-    int *const items = calloc((size_t)n, sizeof(*items));
+    int *const items = checked_calloc((size_t)n, sizeof(*items));
     if(n && !items)
         goto err0;
     sql.n = 0;

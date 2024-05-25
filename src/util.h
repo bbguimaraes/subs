@@ -26,6 +26,9 @@
 #define FOR_EACH(type, var, init) for(type *var = (init); *var; ++var)
 
 static void *checked_malloc(size_t n);
+static void *checked_calloc(size_t n, size_t s);
+static bool checked_calloc_p(size_t n, size_t s, void **p);
+static bool checked_realloc(size_t s, void **p);
 
 static size_t strlen_utf8(const char *s);
 static size_t strlcpy(char *restrict dst, const char *restrict src, size_t n);
@@ -40,6 +43,28 @@ static inline void *checked_malloc(size_t n) {
     if(!ret)
         LOG_ERRNO("malloc", 0);
     return ret;
+}
+
+static inline void *checked_calloc(size_t n, size_t s) {
+    void *ret = NULL;
+    checked_calloc_p(n, s, &ret);
+    return ret;
+}
+
+static inline bool checked_calloc_p(size_t n, size_t s, void **p) {
+    void *const ret = calloc(n, s);
+    if(!ret)
+        return LOG_ERRNO("calloc", 0), false;
+    *p = ret;
+    return true;
+}
+
+static inline bool checked_realloc(size_t s, void **p) {
+    void *const ret = realloc(*p, s);
+    if(!ret)
+        return LOG_ERRNO("realloc", 0), false;
+    *p = ret;
+    return true;
 }
 
 static inline size_t strlen_utf8(const char *s) {

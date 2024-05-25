@@ -394,10 +394,10 @@ static bool reload(void *p) {
     int n = 0;
     if(!query_to_int(db, sql.p, sql.n - 1, param, &n))
         goto err0;
-    char **lines = calloc((size_t)n, sizeof(*lines));
+    char **const lines = checked_calloc((size_t)n, sizeof(*lines));
     if(n && !lines)
         goto err0;
-    int *const items = calloc((size_t)n, sizeof(*items));
+    int *const items = checked_calloc((size_t)n, sizeof(*items));
     if(n && !items)
         goto err1;
     sql.n = 0;
