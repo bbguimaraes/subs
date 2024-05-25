@@ -5,6 +5,8 @@
 
 #include "../task.h"
 
+#define EVENT(...) (struct input_event){ .type = INPUT_TYPE_ ## __VA_ARGS__ }
+
 enum input_type {
     INPUT_TYPE_ERR,
     INPUT_TYPE_KEY,
