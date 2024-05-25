@@ -22,6 +22,7 @@ subs: \
 	src/curses/input.o \
 	src/curses/lua/lua.o \
 	src/curses/menu.o \
+	src/curses/message.o \
 	src/curses/search.o \
 	src/curses/source.o \
 	src/curses/subs.o \
@@ -61,6 +62,7 @@ tests/subs: \
 	src/curses/input.o \
 	src/curses/lua/lua.o \
 	src/curses/menu.o \
+	src/curses/message.o \
 	src/curses/search.o \
 	src/curses/source.o \
 	src/curses/subs.o \

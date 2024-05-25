@@ -8,6 +8,7 @@
 #include "../../subs.h"
 
 #include "../curses.h"
+#include "../message.h"
 #include "../subs.h"
 #include "../source.h"
 #include "../videos.h"
@@ -132,8 +133,8 @@ void init_lua(lua_State *L, struct subs_curses *s, struct videos *videos) {
 }
 
 bool calc_pos_lua(
-    lua_State *L, struct source_bar *source_bar, struct subs_bar *subs_bar,
-    struct videos *videos)
+    lua_State *L, struct message *message, struct source_bar *source_bar,
+    struct subs_bar *subs_bar, struct videos *videos)
 {
     const int top = lua_gettop(L);
     lua_pushcfunction(L, subs_lua_msgh);
@@ -154,6 +155,7 @@ bool calc_pos_lua(
 #define X(p) \
     if(!(get_dimensions(L, t, #p, &x, &y, &w, &h))) goto end; \
     p->x = x; p->y = y; p->width = w; p->height = h;
+    X(message)
     X(source_bar)
     X(subs_bar)
     X(videos)
