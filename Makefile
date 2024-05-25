@@ -24,6 +24,7 @@ subs: \
 	src/curses/list_search.o \
 	src/curses/lua.o \
 	src/curses/menu.o \
+	src/curses/message.o \
 	src/curses/search.o \
 	src/curses/source.o \
 	src/curses/subs.o \
@@ -63,6 +64,7 @@ tests/subs: \
 	src/curses/list_search.o \
 	src/curses/lua.o \
 	src/curses/menu.o \
+	src/curses/message.o \
 	src/curses/search.o \
 	src/curses/source.o \
 	src/curses/subs.o \

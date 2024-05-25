@@ -12,6 +12,7 @@
 
 #include "input.h"
 #include "lua.h"
+#include "message.h"
 #include "source.h"
 #include "subs.h"
 #include "videos.h"
@@ -74,8 +75,9 @@ static bool window_enter(struct subs_curses *s, struct window *w) {
 }
 
 static bool resize(
-    struct subs_curses *sc, struct source_bar *source_bar,
-    struct subs_bar *subs_bar, struct videos *videos)
+    struct subs_curses *sc, struct message *message,
+    struct source_bar *source_bar, struct subs_bar *subs_bar,
+    struct videos *videos)
 {
     if(!(sc->flags & RESIZED))
         return true;
@@ -87,7 +89,7 @@ static bool resize(
     clear();
     refresh();
     return source_bar_update_count(source_bar)
-        && calc_pos_lua(sc->L, source_bar, subs_bar, videos)
+        && calc_pos_lua(sc->L, message, source_bar, subs_bar, videos)
         && source_bar_reload(source_bar)
         && subs_bar_reload(subs_bar)
         && videos_resize(videos);
@@ -223,6 +225,7 @@ bool subs_start_tui(const struct subs *s) {
         return log_errno("setlocale"), false;
     log_prev = log_set_fn(curses_log_fn);
     init();
+    struct message message = {0};
     struct subs_curses sc = {.db = s->db, .L = s->L, .flags = RESIZED};
     struct videos videos = {
         .s = &sc,
@@ -261,7 +264,7 @@ bool subs_start_tui(const struct subs *s) {
     sc.n_windows = ARRAY_SIZE(windows);
     init_lua(s->L, &sc, &videos);
     bool ret = false;
-    if(!resize(&sc, &source_bar, &subs_bar, &videos))
+    if(!resize(&sc, &message, &source_bar, &subs_bar, &videos))
         goto end;
     struct input input = {0};
     if(!input_init(&input))
@@ -296,7 +299,7 @@ bool subs_start_tui(const struct subs *s) {
                 goto end;
             break;
         }
-        if(!resize(&sc, &source_bar, &subs_bar, &videos))
+        if(!resize(&sc, &message, &source_bar, &subs_bar, &videos))
             goto end;
         process_log();
     }
