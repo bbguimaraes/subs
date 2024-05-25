@@ -12,10 +12,9 @@ enum {
 };
 
 enum subs_curses_flags {
-    QUIT =        1u << 0,
-    RESIZED =     1u << 1,
-    WATCHED =     1u << 2,
-    NOT_WATCHED = 1u << 3,
+    RESIZED =     1u << 0,
+    WATCHED =     1u << 1,
+    NOT_WATCHED = 1u << 2,
 };
 
 enum subs_curses_key {

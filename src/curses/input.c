@@ -11,8 +11,6 @@
 
 #include "const.h"
 
-#define EVENT(...) (struct input_event){ .type = INPUT_TYPE_ ## __VA_ARGS__ }
-
 bool input_init(struct input *i) {
     const int sig_fd = setup_signalfd(make_signal_mask(SIGWINCH, 0));
     if(sig_fd == -1)

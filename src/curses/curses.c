@@ -95,7 +95,7 @@ static bool resize(
 }
 
 static bool process_key(
-    struct subs_curses *sc, struct source_bar *source_bar,
+    struct subs_curses *sc, struct input *input, struct source_bar *source_bar,
     struct subs_bar *subs_bar, struct videos *videos, int c)
 {
     const size_t cur = sc->cur_window, n = sc->n_windows;
@@ -127,7 +127,8 @@ static bool process_key(
             && videos_reload(videos);
     case ESC:
     case 'q':
-        sc->flags |= QUIT;
+        if(!input_send_event(input, EVENT(QUIT)))
+            return false;
         break;
     case 'w':
         if((sc->flags = (u8)(sc->flags ^ WATCHED)) & WATCHED)
@@ -278,7 +279,7 @@ bool subs_start_tui(const struct subs *s) {
         goto end;
     videos.task_thread = &task_thread;
     window_enter(&sc, &windows[sc.cur_window]);
-    while(!(sc.flags & QUIT)) {
+    for(;;) {
         const struct input_event e = input_process(&input);
         switch(e.type) {
         case INPUT_TYPE_QUIT:
@@ -289,7 +290,9 @@ bool subs_start_tui(const struct subs *s) {
             sc.flags = (u8)(sc.flags | RESIZED);
             break;
         case INPUT_TYPE_KEY:
-            if(!process_key(&sc, &source_bar, &subs_bar, &videos, e.key))
+            if(!process_key(
+                &sc, &input, &source_bar, &subs_bar, &videos, e.key
+            ))
                 goto end;
             break;
         case INPUT_TYPE_TASK:
@@ -301,7 +304,6 @@ bool subs_start_tui(const struct subs *s) {
             goto end;
         process_log();
     }
-    ret = true;
 end:
     videos_destroy(&videos);
     subs_bar_destroy(&subs_bar);
