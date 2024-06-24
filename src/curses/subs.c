@@ -151,7 +151,7 @@ static void build_query_list(
 
 static bool populate(
     sqlite3 *db, const char *sql, size_t len, const int *param, int width,
-    char **lines, int *ids)
+    i64 *ids, char **lines)
 {
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(db, sql, (int)len, 0, &stmt, NULL);
@@ -167,7 +167,7 @@ static bool populate(
         case SQLITE_DONE: ret = true; /* fall through */
         default: goto end;
         }
-        *ids++ = sqlite3_column_int(stmt, 0);
+        *ids++ = sqlite3_column_int64(stmt, 0);
         *lines++ = subs_row_to_str(stmt, width);
     }
 end:
@@ -211,7 +211,7 @@ static enum subs_curses_key input_search(struct subs_bar *b, int c) {
 
 static bool select_item(struct subs_bar *b, int i) {
     struct videos *const v = b->videos;
-    videos_set_sub(v, b->items[i]);
+    videos_set_sub(v, (int)b->list.ids[i]);
     return videos_reload(v)
         && change_window(b->s, VIDEOS_IDX);
 }
@@ -226,14 +226,14 @@ static bool reload_item(struct subs_bar *b) {
         " left outer join videos on subs.id == videos.sub"
         " where subs.id == ?"
         " group by subs.id";
-    const int id = b->items[b->list.i];
+    const i64 id = b->list.ids[b->list.i];
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(b->s->db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
     if(!stmt)
         return false;
     bool ret = false;
     struct buffer str = {0};
-    if(sqlite3_bind_int(stmt, 1, id) != SQLITE_OK)
+    if(sqlite3_bind_int64(stmt, 1, id) != SQLITE_OK)
         goto err0;
     for(;;) {
         switch(sqlite3_step(stmt)) {
@@ -325,29 +325,31 @@ bool subs_bar_reload(struct subs_bar *b) {
     build_query_count(tag, type, global_flags, flags, &sql);
     if(!query_to_int(db, sql.p, sql.n - 1, param, &n))
         goto err0;
+    i64 *const ids = checked_calloc((size_t)n, sizeof(*ids));
+    if(!ids)
+        goto err0;
     char **const lines = checked_calloc((size_t)n + 1, sizeof(*lines));
     if(!lines)
-        goto err0;
-    int *const items = checked_calloc((size_t)n, sizeof(*items));
-    if(n && !items)
-        goto err0;
+        goto err1;
     sql.n = 0;
     build_query_list(tag, type, global_flags, flags, b->order, &sql);
-    if(!populate(db, sql.p, sql.n - 1, param, width - 4, lines, items))
-        goto err1;
-    if(!list_init(&b->list, NULL, n, lines, b->x, b->y, width, LINES - b->y))
-        goto err1;
+    if(!populate(db, sql.p, sql.n - 1, param, width - 4, ids, lines))
+        goto err2;
+    if(!list_init(
+        &b->list, NULL, n, ids, lines, b->x, b->y, width, LINES - b->y
+    ))
+        goto err2;
     free(sql.p);
-    b->items = items;
     b->width = width;
     render_border(&b->list, &b->search, b->flags, b->order);
     list_refresh(&b->list);
     return true;
-err1:
+err2:
     for(char **p = lines; *p; ++p)
         free(*p);
     free(lines);
-    free(items);
+err1:
+    free(ids);
 err0:
     free(sql.p);
     return false;
@@ -357,7 +359,6 @@ void subs_bar_destroy(struct subs_bar *b) {
     if(b->menu.m)
         menu_destroy(&b->menu);
     list_destroy(&b->list);
-    free(b->items);
     free(b->search.b.p);
 }
 

@@ -75,7 +75,7 @@ static int add_message_lua(lua_State *L) {
 
 static int videos_cur_item(lua_State *L) {
     struct videos *const v = *(struct videos**)lua_touserdata(L, 1);
-    lua_pushinteger(L, v->items[v->list.i]);
+    lua_pushinteger(L, v->list.ids[v->list.i]);
     return 1;
 }
 
@@ -85,7 +85,7 @@ static int items_iter(lua_State *L) {
     if(i < 0 || v->n <= i)
         return 0;
     lua_pushinteger(L, i + 1);
-    lua_pushinteger(L, v->items[i]);
+    lua_pushinteger(L, v->list.ids[i]);
     return 2;
 }
 

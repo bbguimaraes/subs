@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+#include "../../util.h"
+
 #include "../const.h"
 
 struct window;
@@ -29,6 +31,8 @@ struct list {
     struct window *w;
     /** Sub-window of \ref w, excluding borders and spaces. */
     struct window *sub;
+    /** Unique identifier for each item. */
+    i64 *ids;
     /** Items displayed in the list. */
     char **lines;
     /** Length of \ref lines. */
@@ -51,7 +55,7 @@ struct list {
 
 bool list_init(
     struct list *l, struct window *(*window_new)(int, int, int, int),
-    int n, char **lines, int x, int y, int width, int height);
+    int n, i64 *ids, char **lines, int x, int y, int width, int height);
 void list_destroy(struct list *l);
 void list_refresh(struct list *l);
 void list_redraw(struct list *l);

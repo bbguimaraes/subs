@@ -16,7 +16,8 @@
 enum { ALL, TAGS, UNTAGGED };
 
 static bool populate(
-    sqlite3 *db, const char *sql, size_t len, int width, char **lines, int *ids)
+    sqlite3 *db, const char *sql, size_t len, int width,
+    i64 *ids, char **lines)
 {
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(db, sql, (int)len, 0, &stmt, NULL);
@@ -30,7 +31,7 @@ static bool populate(
         case SQLITE_DONE: ret = true; /* fall through */
         default: goto end;
         }
-        *ids++ = sqlite3_column_int(stmt, 0);
+        *ids++ = sqlite3_column_int64(stmt, 0);
         *lines++ = name_with_counts(
             width, "  ", (const char*)sqlite3_column_text(stmt, 1),
             sqlite3_column_int(stmt, 2), sqlite3_column_int(stmt, 3));
@@ -50,11 +51,11 @@ static bool select(struct source_bar *b) {
         subs_bar_set_untagged(s);
         videos_set_untagged(v);
     } else if(i < types) {
-        const int id = b->items[i];
+        const int id = (int)b->list.ids[i];
         subs_bar_set_tag(s, id);
         videos_set_tag(v, id);
     } else {
-        const int id = b->items[i];
+        const int id = (int)b->list.ids[i];
         subs_bar_set_type(s, id);
         videos_set_type(v, id);
     }
@@ -163,12 +164,12 @@ bool source_bar_reload(struct source_bar *b) {
         return false;
     const int n_special = 2, n_sections = 2, n_types = 2, null_term = 1;
     const int n = n_special + n_sections + n_tags + n_types + null_term;
+    i64 *const ids = checked_calloc((size_t)n, sizeof(*ids));
+    if(!ids)
+        goto err0;
     char **const lines = checked_calloc((size_t)n, sizeof(*lines));
     if(!lines)
-        goto err0;
-    int *const items = checked_calloc((size_t)n, sizeof(*items));
-    if(!items)
-        goto err0;
+        goto err1;
     const int text_width = b->width - 4;
     const int i_tags = UNTAGGED + 1, i_types = i_tags + n_tags + 1;
     lines[ALL] = name_with_counts(text_width, "", "all", n_unwatched, n_videos);
@@ -187,39 +188,39 @@ bool source_bar_reload(struct source_bar *b) {
         " group by tags.id"
         " order by name";
     if(!populate(
-        db, tags, sizeof(tags) - 1, text_width, lines + i_tags, items + i_tags
+        db, tags, sizeof(tags) - 1, text_width,
+        ids + i_tags, lines + i_tags
     ))
-        goto err1;
+        goto err2;
     lines[i_types - 1] = strdup("types");
     lines[i_types + 0] = name_with_counts(
         text_width, "  ", "lbry", n_lbry_unwatched, n_lbry);
     lines[i_types + 1] = name_with_counts(
         text_width, "  ", "youtube", n_youtube_unwatched, n_youtube);
-    items[i_types + 0] = SUBS_LBRY;
-    items[i_types + 1] = SUBS_YOUTUBE;
+    ids[i_types + 0] = SUBS_LBRY;
+    ids[i_types + 1] = SUBS_YOUTUBE;
     if(!list_init(
-        &b->list, NULL, (int)n - 1, lines, b->x, b->y, b->width, n + 1
+        &b->list, NULL, (int)n - 1, ids, lines, b->x, b->y, b->width, n + 1
     ))
-        goto err1;
+        goto err2;
     render_border(&b->list, b->s->flags, &b->search);
     if(b->n_tags != n_tags)
         s->flags = (u8)(s->flags | RESIZED);
-    b->items = items;
     b->n_tags = n_tags;
     list_refresh(&b->list);
     return true;
-err1:
-    free(items);
-err0:
+err2:
     for(char **p = lines; *p; ++p)
         free(*p);
     free(lines);
+err1:
+    free(ids);
+err0:
     return false;
 }
 
 void source_bar_destroy(struct source_bar *b) {
     list_destroy(&b->list);
-    free(b->items);
     free(b->search.b.p);
 }
 

@@ -21,7 +21,6 @@ struct source_bar {
     struct videos *videos;
     struct list list;
     struct search search;
-    int *items;
     int x, y, width, height, n_tags;
 };
 

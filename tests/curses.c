@@ -55,7 +55,7 @@ struct window *test_window_new(int h, int w, int y, int x) {
 
 bool list_window_new(void) {
     struct list l = {0};
-    list_init(&l, test_window_new, 0, NULL, 1, 2, 3, 4);
+    list_init(&l, test_window_new, 0, NULL, NULL, 1, 2, 3, 4);
     const struct test_window *const w = (const struct test_window*)l.w;
     bool ret = true;
     ret = ret

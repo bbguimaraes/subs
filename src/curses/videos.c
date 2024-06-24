@@ -27,8 +27,8 @@ struct reload_data {
     struct buffer sql;
     u8 global_flags, flags;
     // reload_finish
+    i64 *ids;
     char **lines;
-    int *items;
     int n, tag, sub, type;
 };
 static bool reload_finish(void *d);
@@ -59,7 +59,7 @@ static bool item_watched(const char *s) {
     return s[1] == 'N';
 }
 
-static char *videos_row_to_str(sqlite3_stmt *stmt, int id) {
+static char *videos_row_to_str(sqlite3_stmt *stmt, i64 id) {
     static const char type_str[] = {
         [SUBS_LBRY] = 'L',
         [SUBS_YOUTUBE] = 'Y',
@@ -97,7 +97,7 @@ static char *videos_row_to_str(sqlite3_stmt *stmt, int id) {
 
 static bool populate(
     sqlite3 *db, const char *sql, size_t len, const int *param,
-    char **lines, int *ids)
+    i64 *ids, char **lines)
 {
     bool ret = false;
     sqlite3_stmt *stmt = NULL;
@@ -128,13 +128,13 @@ bool reload_item(struct videos *v) {
         " from videos"
         " join subs on videos.sub == subs.id"
         " where videos.id == ?";
-    const int id = v->items[l->i];
+    const i64 id = v->list.ids[l->i];
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(v->s->db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
     if(!stmt)
         return false;
     bool ret = false;
-    if(sqlite3_bind_int(stmt, 1, id) != SQLITE_OK)
+    if(sqlite3_bind_int64(stmt, 1, id) != SQLITE_OK)
         goto err;
     for(;;) {
         switch(sqlite3_step(stmt)) {
@@ -155,14 +155,14 @@ err:
 
 static bool toggle_item_watched(struct videos *v) {
     struct list *const l = &v->list;
-    const int id = v->items[l->i];
+    const i64 id = v->list.ids[l->i];
     const char sql[] = "update videos set watched = not watched where id == ?";
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(v->s->db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
     if(!stmt)
         return false;
     bool ret = false;
-    if(sqlite3_bind_int(stmt, 1, id) != SQLITE_OK)
+    if(sqlite3_bind_int64(stmt, 1, id) != SQLITE_OK)
         goto end;
     for(;;) {
         switch(sqlite3_step(stmt)) {
@@ -196,7 +196,7 @@ static bool next_unwatched(struct videos *v) {
     return false;
 }
 
-static bool open_item(sqlite3 *db, lua_State *L, int id) {
+static bool open_item(sqlite3 *db, lua_State *L, i64 id) {
     const char sql[] =
         "select subs.type, videos.ext_id from videos"
         " join subs on subs.id == videos.sub"
@@ -206,7 +206,7 @@ static bool open_item(sqlite3 *db, lua_State *L, int id) {
     if(!stmt)
         return false;
     bool ret = false;
-    if(sqlite3_bind_int(stmt, 1, id) != SQLITE_OK)
+    if(sqlite3_bind_int64(stmt, 1, id) != SQLITE_OK)
         goto err0;
     const int top = lua_gettop(L);
     lua_pushcfunction(L, subs_lua_msgh);
@@ -267,7 +267,7 @@ static enum subs_curses_key input(struct videos *v, int c) {
     case 'o':
         if(!l->n)
             return true;
-        if(!open_item(v->s->db, v->s->L, v->items[l->i]))
+        if(!open_item(v->s->db, v->s->L, v->list.ids[l->i]))
             return false;
         break;
     case 'r':
@@ -394,20 +394,20 @@ static bool reload(void *p) {
     int n = 0;
     if(!query_to_int(db, sql.p, sql.n - 1, param, &n))
         goto err0;
+    i64 *const ids = checked_calloc((size_t)n, sizeof(*ids));
+    if(n && !ids)
+        goto err0;
     char **const lines = checked_calloc((size_t)n, sizeof(*lines));
     if(n && !lines)
-        goto err0;
-    int *const items = checked_calloc((size_t)n, sizeof(*items));
-    if(n && !items)
         goto err1;
     sql.n = 0;
     build_query_list(tag, type, sub, global_flags, flags, &sql);
-    if(!populate(db, sql.p, sql.n - 1, param, lines, items))
+    if(!populate(db, sql.p, sql.n - 1, param, ids, lines))
         goto err2;
     free(d->sql.p);
     d->n = n;
+    d->ids = ids;
     d->lines = lines;
-    d->items = items;
     if(!input_send_event(v->input, (struct input_event){
         .type = INPUT_TYPE_TASK,
         .task = {.f = reload_finish, .p = d},
@@ -419,11 +419,11 @@ static bool reload(void *p) {
 err3:
     free(d);
 err2:
-    free(items);
-err1:
     for(char **p = lines; *p; ++p)
         free(*p);
     free(lines);
+err1:
+    free(ids);
 err0:
     free(sql.p);
     return false;
@@ -434,23 +434,21 @@ static bool reload_finish(void *p) {
     free(p);
     struct videos *const v = d.v;
     struct list *const l = &v->list;
-    if(!list_init(l, NULL, d.n, d.lines, v->x, v->y, v->width, LINES))
+    if(!list_init(l, NULL, d.n, d.ids, d.lines, v->x, v->y, v->width, LINES))
         goto err;
     render_border(l, v);
     v->n = d.n;
-    v->items = d.items;
     v->tag = d.tag;
     list_refresh(l);
     return true;
 err:
+    free(d.ids);
     free(d.lines);
-    free(d.items);
     return false;
 }
 
 void videos_destroy(struct videos *v) {
     list_destroy(&v->list);
-    free(v->items);
     free(v->search.b.p);
 }
 
@@ -506,7 +504,7 @@ bool videos_resize(struct videos *v) {
     struct list *const l = &v->list;
     if(v->flags & VIDEOS_ACTIVE)
         list_resize(l, NULL, v->x, 0, v->width, LINES);
-    else if(!list_init(l, NULL, 0, NULL, v->x, v->y, v->width, LINES))
+    else if(!list_init(l, NULL, 0, NULL, NULL, v->x, v->y, v->width, LINES))
         return false;
     render_border(l, v);
     list_refresh(l);
@@ -515,9 +513,7 @@ bool videos_resize(struct videos *v) {
 
 bool videos_reload(struct videos *v) {
     struct list *const l = &v->list;
-    free(v->items);
-    v->items = NULL;
-    if(!list_init(l, NULL, 0, NULL, v->x, v->y, v->width, LINES))
+    if(!list_init(l, NULL, 0, NULL, NULL, v->x, v->y, v->width, LINES))
         return false;
     list_refresh(l);
     if(~v->flags & VIDEOS_ACTIVE)

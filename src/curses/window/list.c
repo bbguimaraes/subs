@@ -116,12 +116,14 @@ static void offset(struct list *l, int d) {
 
 bool list_init(
     struct list *l, struct window *(*window_new)(int, int, int, int),
-    int n, char **lines, int x, int y, int width, int height)
+    int n, i64 *ids, char **lines, int x, int y, int width, int height)
 {
     if(height < 2)
         return LOG_ERR("insufficient height (%d)\n", height), false;
+    free(l->ids);
     free(l->lines);
     // TODO preserve current item as much as possible
+    l->ids = ids;
     l->lines = lines;
     l->n = n;
     if(!l->selected_attr)
@@ -134,7 +136,9 @@ bool list_init(
 }
 
 void list_destroy(struct list *l) {
+    free(l->ids);
     free(l->lines);
+    l->ids = NULL;
     l->lines = NULL;
     if(l->w) {
         window_destroy(l->w), l->w = NULL;

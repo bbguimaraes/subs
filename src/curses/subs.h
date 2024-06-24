@@ -21,7 +21,6 @@ struct subs_bar {
     struct list list;
     struct search search;
     struct menu menu;
-    int *items;
     int x, y, width, height, tag, type;
     u8 flags, order;
 };
