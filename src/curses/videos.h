@@ -26,7 +26,6 @@ struct videos {
     struct subs_curses *s;
     struct input *input;
     struct task_thread *task_thread;
-    int *items;
     struct list list;
     struct search search;
     int n, x, y, width, height, tag, type, sub;
