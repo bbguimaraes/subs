@@ -36,31 +36,30 @@ static void resize(
     struct list *l, struct window *(*window_new)(int, int, int, int),
     int x, int y, int w, int h)
 {
-    bool create = true;
     if(l->w) {
-        create = l->x != x || l->y != y || l->width != w || l->height != h;
-        if(create)
-            window_destroy(l->w);
-        else
+        if(l->x == x && l->y == y && l->width == w && l->height == h) {
             window_clear(l->w);
+            return;
+        }
+        window_destroy(l->w);
     }
-    if(create) {
-        const int sh = h - 2 * BORDER_SIZE;
-        const int sw = w - 2 * (BORDER_SIZE + INNER_SPACE);
-        if(!window_new)
-            window_new = window_new_curses;
-        l->w = window_new(h, w, y, x);
-        l->sub = window_derive(
-            l->w, sh, sw, BORDER_SIZE, BORDER_SIZE + INNER_SPACE);
-        l->x = x;
-        l->y = y;
-        l->width = w;
-        l->height = h;
-    }
-    const int i = l->n ? limit_idx(l, l->i) : 0;
+    const int sh = h - 2 * BORDER_SIZE;
+    const int sw = w - 2 * (BORDER_SIZE + INNER_SPACE);
+    if(!window_new)
+        window_new = window_new_curses;
+    l->w = window_new(h, w, y, x);
+    l->sub = window_derive(
+        l->w, sh, sw, BORDER_SIZE, BORDER_SIZE + INNER_SPACE);
+    l->x = x;
+    l->y = y;
+    l->width = w;
+    l->height = h;
+}
+
+static void limit_offset_after_resize(struct list *l) {
     const int o = MIN(l->offset, max_offset(l));
-    l->offset = (i < max_idx_for_offset(l)) ? o : offset_for_bottom_idx(l, i);
-    l->i = i;
+    l->offset = (l->i < max_idx_for_offset(l))
+        ? o : offset_for_bottom_idx(l, l->i);
 }
 
 static void set_line_attr(struct window *w, int y, attr_t a) {
@@ -96,6 +95,18 @@ static void move_idx(struct list *l, int i) {
     l->i = i;
 }
 
+static void select_id(struct list *l, i64 id) {
+    if(id == -1)
+        return;
+    const i64 *const ids = l->ids;
+    const int n = l->n;
+    for(int i = 0; i != n; ++i)
+        if(ids[i] == id) {
+            move_idx(l, i);
+            break;
+        }
+}
+
 static void offset(struct list *l, int d) {
     const int n = l->n;
     if(!n)
@@ -120,17 +131,22 @@ bool list_init(
 {
     if(height < 2)
         return LOG_ERR("insufficient height (%d)\n", height), false;
+    const i64 prev_id = l->n ? l->ids[l->i] : -1;
     free(l->ids);
     free(l->lines);
-    // TODO preserve current item as much as possible
     l->ids = ids;
     l->lines = lines;
     l->n = n;
     if(!l->selected_attr)
         l->selected_attr = NOT_SELECTED_ATTR;
     resize(l, window_new, x, y, width, height);
-    if(n)
+    l->i = n ? limit_idx(l, l->i) : 0;
+    limit_offset_after_resize(l);
+    if(n) {
+        l->i = n ? limit_idx(l, l->i) : 0;
+        select_id(l, prev_id);
         redraw(l);
+    }
     window_box(l->w, 0, 0);
     return true;
 }
@@ -163,6 +179,7 @@ void list_resize(
     int x, int y, int width, int height)
 {
     resize(l, window_new, x, y, width, height);
+    limit_offset_after_resize(l);
     if(l->n)
         redraw(l);
     window_box(l->w, 0, 0);
