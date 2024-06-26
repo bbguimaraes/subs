@@ -14,7 +14,7 @@
 
 static void usage(void) {
     printf(
-"Usage: %s [options] [command [args]]\n"
+"Usage: %s [OPTION...] [COMMAND [ARG...]]\n"
 "\n"
 "Options:\n"
 "    -h, --help      This help text.\n"
