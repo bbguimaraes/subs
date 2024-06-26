@@ -54,8 +54,7 @@ static bool count_videos(sqlite3 *db, size_t *p) {
 
 static int has_youtube(sqlite3 *db) {
     const char sql[] =
-        "select 1 from videos"
-        " join subs on videos.sub == subs.id"
+        "select 1 from subs"
         " where subs.type == ?"
         " limit 1";
     const int param = SUBS_YOUTUBE;
