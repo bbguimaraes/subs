@@ -31,8 +31,8 @@ static void usage(void) {
 "                    Add a subscription.\n"
 "    rm ID           Remove a subscription.\n"
 "    tag add NAME    Create a tag.\n"
-"    tag subs|videos TAG_ID ID...\n"
-"                    Add tag TAG_ID to subscriptions/videos.\n"
+"    tag subs|videos TAG_NAME|TAG_ID ID...\n"
+"                    Add tag to subscriptions/videos.\n"
 "    watched [-r|--remove] ID\n"
 "                    Mark videos as watched (`-r` to unmark)\n"
 "    update [OPTIONS]\n"
@@ -423,6 +423,70 @@ bool subs_add_tag(const struct subs *s, const char *name) {
     return ret;
 }
 
+static i64 find_tag_by_name(sqlite3 *db, const char *arg);
+static i64 is_valid_tag_id(sqlite3 *db, const char *arg);
+
+static i64 find_tag(sqlite3 *db, const char *arg) {
+    i64 ret = -1;
+    if((ret = find_tag_by_name(db, arg)) != -1)
+        return ret;
+    if((ret = is_valid_tag_id(db, arg)) != -1)
+        return ret;
+    log_err("invalid tag ID/name: \n", arg);
+    return -1;
+}
+
+static i64 find_tag_by_name(sqlite3 *db, const char *arg) {
+    const char sql[] = "select id from tags where name == ? limit 1";
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
+    if(!stmt)
+        return -1;
+    i64 ret = -1;
+    if(sqlite3_bind_text(stmt, 1, arg, -1, SQLITE_STATIC) != SQLITE_OK)
+        goto end;
+    for(;;)
+        switch(sqlite3_step(stmt)) {
+        case SQLITE_BUSY: break;
+        case SQLITE_ROW:
+            ret = sqlite3_column_int64(stmt, 0);
+            /* fallthrough */
+        case SQLITE_DONE:
+        default: goto end;
+        }
+end:
+    if(sqlite3_finalize(stmt) != SQLITE_OK)
+        ret = -1;
+    return ret;
+}
+
+static i64 is_valid_tag_id(sqlite3 *db, const char *arg) {
+    const i64 id = parse_i64(arg);
+    if(id == -1)
+        return -1;
+    const char sql[] = "select 1 from tags where id == ?";
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
+    if(!stmt)
+        return -1;
+    i64 ret = -1;
+    if(sqlite3_bind_int64(stmt, 1, id) != SQLITE_OK)
+        goto end;
+    for(;;)
+        switch(sqlite3_step(stmt)) {
+        case SQLITE_BUSY: break;
+        case SQLITE_ROW:
+            ret = id;
+            /* fallthrough */
+        case SQLITE_DONE:
+        default: goto end;
+        }
+end:
+    if(sqlite3_finalize(stmt) != SQLITE_OK)
+        ret = -1;
+    return ret;
+}
+
 static bool tag_common(sqlite3 *db, const char *sql, int len, i64 tag, i64 id);
 
 bool subs_tag_sub(const struct subs *s, i64 tag, i64 id) {
@@ -560,7 +624,7 @@ static bool cmd_tag(struct subs *s, int argc, char **argv) {
         return log_err("invalid tag destination type: %s\n", *argv), false;
     if(!*++argv)
         return log_err("missing tag argument\n"), false;
-    const i64 tag = parse_i64(*argv);
+    const i64 tag = find_tag(s->db, *argv);
     if(tag == -1)
         return false;
     while(*++argv) {
