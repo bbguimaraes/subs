@@ -90,6 +90,34 @@ end:
     return ret;
 }
 
+bool buffer_str_append_str_test(void) {
+    const char src0[] = "0123456";
+    const char src1[] = "789abcd";
+    const char expected[] = "0123456789abcd";
+    const size_t n0 = sizeof(src0);
+    const size_t n = sizeof(expected);
+    struct buffer b = {0};
+    buffer_append_str(&b, src0);
+    bool ret = true;
+    ret =
+        ASSERT_STR_EQ_N(b.p, src0, n0)
+        && ASSERT_EQ(b.n, n0)
+        && ASSERT_EQ(b.cap, n0);
+    if(!ret)
+        goto end;
+    buffer_str_append_str(&b, src1);
+    ret =
+        ASSERT_STR_EQ_N(b.p, expected, n)
+        && ASSERT_EQ(b.n, n)
+        && ASSERT_EQ(b.cap, 16);
+    if(!ret)
+        goto end;
+    ret = true;
+end:
+    free(b.p);
+    return ret;
+}
+
 int main(void) {
     log_set(stderr);
     bool ret = true;
@@ -98,5 +126,6 @@ int main(void) {
     ret = RUN(buffer_append_half) && ret;
     ret = RUN(buffer_append_full) && ret;
     ret = RUN(buffer_append_str_test) && ret;
+    ret = RUN(buffer_str_append_str_test) && ret;
     return !ret;
 }

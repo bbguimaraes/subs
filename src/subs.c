@@ -271,10 +271,10 @@ bool subs_list(const struct subs *s, i64 tag, FILE *f) {
     buffer_append_str(&b,
         "select subs.id, subs.type, subs.ext_id, subs.name from subs");
     if(tag)
-        --b.n, buffer_append_str(&b,
+        buffer_str_append_str(&b,
             " join subs_tags on subs.id == subs_tags.sub"
             " where subs_tags.tag == ?");
-    --b.n, buffer_append_str(&b, " order by subs.id");
+    buffer_str_append_str(&b, " order by subs.id");
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(s->db, b.p, (int)b.n, 0, &stmt, NULL);
     bool ret = false;
@@ -302,10 +302,10 @@ bool subs_list_videos(const struct subs *s, i64 tag, FILE *f) {
         " from videos"
         " join subs on subs.id == videos.sub");
     if(tag)
-        --b.n, buffer_append_str(&b,
+        buffer_str_append_str(&b,
             ", videos_tags on videos.id == videos_tags.video"
             " where videos_tags.tag == ?");
-    --b.n, buffer_append_str(&b, " order by timestamp");
+    buffer_str_append_str(&b, " order by timestamp");
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(s->db, b.p, (int)b.n, 0, &stmt, NULL);
     bool ret = false;
