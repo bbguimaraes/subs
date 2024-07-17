@@ -27,6 +27,8 @@ static void buffer_append(struct buffer *b, const void *s, size_t n);
 static void buffer_append_str(struct buffer *b, const char *s);
 void buffer_printf(struct buffer *b, const char *restrict fmt, ...);
 
+static void buffer_str_append_str(struct buffer *b, const char *s);
+
 static inline struct buffer buffer_new(size_t size) {
     return (struct buffer){.p = checked_malloc(size), .n = 0, .cap = size};
 }
@@ -63,6 +65,12 @@ static inline void buffer_append(struct buffer *b, const void *p, size_t n) {
     buffer_reserve(b, new_n);
     memcpy((char*)b->p + bn, p, n);
     b->n = new_n;
+}
+
+static inline void buffer_str_append_str(struct buffer *b, const char *s) {
+    assert(!((const char*)b->p)[b->n - 1]);
+    --b->n;
+    buffer_append_str(b, s);
 }
 
 static inline void buffer_append_str(struct buffer *b, const char *s) {
