@@ -334,31 +334,31 @@ static void build_query_common(
     const bool untagged = flags & VIDEOS_UNTAGGED;
     const bool filtered = tag || type || sub || untagged;
     if(untagged || tag)
-        --b->n, buffer_append_str(b,
+        buffer_str_append_str(b,
             " left outer join videos_tags on videos.id == videos_tags.video"
             " left outer join subs_tags on videos.sub == subs_tags.sub");
     if(untagged)
-        --b->n, buffer_append_str(b,
+        buffer_str_append_str(b,
             " where (subs_tags.id is null and videos_tags.id is null)");
     else if(tag)
-        --b->n, buffer_append_str(b,
+        buffer_str_append_str(b,
             " where (videos_tags.tag == ?1 or subs_tags.tag == ?1)");
     else if(type)
-        --b->n, buffer_append_str(b, " where subs.type == ?");
+        buffer_str_append_str(b, " where subs.type == ?");
     else if(sub)
-        --b->n, buffer_append_str(b, " where sub == ?");
+        buffer_str_append_str(b, " where sub == ?");
     if(global_flags & WATCHED) {
         if(filtered)
-            --b->n, buffer_append_str(b, " and");
+            buffer_str_append_str(b, " and");
         else
-            --b->n, buffer_append_str(b, " where");
-        --b->n, buffer_append_str(b, " videos.watched == 1");
+            buffer_str_append_str(b, " where");
+        buffer_str_append_str(b, " videos.watched == 1");
     } else if(global_flags & NOT_WATCHED) {
         if(filtered)
-            --b->n, buffer_append_str(b, " and");
+            buffer_str_append_str(b, " and");
         else
-            --b->n, buffer_append_str(b, " where");
-        --b->n, buffer_append_str(b, " videos.watched == 0");
+            buffer_str_append_str(b, " where");
+        buffer_str_append_str(b, " videos.watched == 0");
     }
 }
 
@@ -367,7 +367,7 @@ static void build_query_count(
 {
     buffer_append_str(b, "select count(*) from videos");
     if(type)
-        --b->n, buffer_append_str(b, " join subs on videos.sub == subs.id");
+        buffer_str_append_str(b, " join subs on videos.sub == subs.id");
     build_query_common(tag, type, sub, global_flags, flags, b);
 }
 
@@ -379,7 +379,7 @@ static void build_query_list(
         " from videos"
         " join subs on videos.sub == subs.id");
     build_query_common(tag, type, sub, global_flags, flags, b);
-    --b->n, buffer_append_str(b, " order by videos.timestamp, videos.id");
+    buffer_str_append_str(b, " order by videos.timestamp, videos.id");
 }
 
 static bool reload(void *p) {

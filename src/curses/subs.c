@@ -72,29 +72,29 @@ static void build_query_common(
     const bool untagged = flags & UNTAGGED;
     const bool filtered = tag || type || untagged;
     if(untagged || tag)
-        --b->n, buffer_append_str(b,
+        buffer_str_append_str(b,
             " left outer join subs_tags on subs.id == subs_tags.sub"
             " left outer join videos_tags on videos.id == videos_tags.video");
     if(untagged)
-        --b->n, buffer_append_str(b,
+        buffer_str_append_str(b,
             " where (subs_tags.id is null and videos_tags.id is null)");
     else if(tag)
-        --b->n, buffer_append_str(b,
+        buffer_str_append_str(b,
             " where (videos_tags.tag == ?1 or subs_tags.tag == ?1)");
     else if(type)
-        --b->n, buffer_append_str(b, " where subs.type == ?");
+        buffer_str_append_str(b, " where subs.type == ?");
     if(watched) {
         if(filtered)
-            --b->n, buffer_append_str(b, " and");
+            buffer_str_append_str(b, " and");
         else
-            --b->n, buffer_append_str(b, " where");
-        --b->n, buffer_append_str(b, " videos.watched == 1");
+            buffer_str_append_str(b, " where");
+        buffer_str_append_str(b, " videos.watched == 1");
     } else if(not_watched) {
         if(filtered)
-            --b->n, buffer_append_str(b, " and");
+            buffer_str_append_str(b, " and");
         else
-            --b->n, buffer_append_str(b, " where");
-        --b->n, buffer_append_str(b, " videos.watched == 0");
+            buffer_str_append_str(b, " where");
+        buffer_str_append_str(b, " videos.watched == 0");
     }
 }
 
@@ -125,27 +125,26 @@ static void build_query_list(
         " from subs"
         " left outer join videos on subs.id == videos.sub");
     build_query_common(tag, type, global_flags, flags, b);
-    --b->n, buffer_append_str(b, " group by subs.id");
-    --b->n, buffer_append_str(b, " order by ");
-    --b->n;
+    buffer_str_append_str(b, " group by subs.id");
+    buffer_str_append_str(b, " order by ");
     switch(order) {
-    case SUBS_NAME: buffer_append_str(b, "subs.name"); break;
-    case SUBS_ID: buffer_append_str(b, "subs.id"); break;
+    case SUBS_NAME: buffer_str_append_str(b, "subs.name"); break;
+    case SUBS_ID: buffer_str_append_str(b, "subs.id"); break;
     case SUBS_WATCHED:
-        buffer_append_str(b,
+        buffer_str_append_str(b,
             "count(case when videos.watched then 1 else null end)");
         break;
     case SUBS_UNWATCHED:
-        buffer_append_str(b,
+        buffer_str_append_str(b,
             "count(case when not videos.watched then 1 else null end)");
         break;
     }
     if(flags & ORDER_DESC)
-        --b->n, buffer_append_str(b, " desc");
+        buffer_str_append_str(b, " desc");
     switch(order) {
     case SUBS_WATCHED:
     case SUBS_UNWATCHED:
-        --b->n, buffer_append_str(b, ", subs.name");
+        buffer_str_append_str(b, ", subs.name");
     }
 }
 

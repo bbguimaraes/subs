@@ -12,9 +12,9 @@
 #include "update.h"
 
 static void build_query_common(struct buffer *b, int since) {
-    --b->n, buffer_append_str(b, " from subs where disabled == 0");
+    buffer_str_append_str(b, " from subs where disabled == 0");
     if(since)
-        --b->n, buffer_append_str(b, " and last_update < ?");
+        buffer_str_append_str(b, " and last_update < ?");
 }
 
 static bool count_subs(sqlite3 *db, struct buffer *b, int since, size_t *p) {
@@ -122,7 +122,7 @@ bool subs_update(
     sql.n = 0;
     buffer_append_str(&sql, "select id, ext_id, type, name");
     build_query_common(&sql, since);
-    --sql.n, buffer_append_str(&sql, " order by id");
+    buffer_str_append_str(&sql, " order by id");
     sqlite3_stmt *stmt = NULL;
     sqlite3_prepare_v3(db, sql.p, (int)sql.n, 0, &stmt, NULL);
     if(!stmt)
