@@ -86,10 +86,12 @@ static void render_border(struct list *l, u8 flags, const struct search *s) {
     list_write_title(l, x, " /%s ", search.p ? (const char*)search.p : "");
 }
 
-static enum subs_curses_key input_search(struct source_bar *b, int c) {
+static enum subs_curses_key input_search(
+    struct source_bar *b, int c, int count)
+{
     struct search *const s = &b->search;
     struct list *const l = &b->list;
-    const enum subs_curses_key ret = list_search_input(s, l, c);
+    const enum subs_curses_key ret = list_search_input(s, l, c, count);
     if(ret == KEY_HANDLED) {
         list_box(l);
         render_border(l, b->s->flags, s);
@@ -244,7 +246,7 @@ void source_bar_redraw(void *data) {
 enum subs_curses_key source_bar_input(void *data, int c, int count) {
     struct source_bar *b = data;
     if(search_is_input_active(&b->search))
-        return input_search(b, c);
+        return input_search(b, c, count);
     switch(c) {
     case '\n': if(!select(b)) return false; break;
     case '/':
@@ -254,7 +256,7 @@ enum subs_curses_key source_bar_input(void *data, int c, int count) {
         break;
     case 'n':
         if(!search_is_empty(&b->search))
-            list_search_next(&b->search, &b->list);
+            list_search_next(&b->search, &b->list, count);
         break;
     default: return list_input(&b->list, c, count);
     }

@@ -7,30 +7,33 @@
 #include "list.h"
 #include "search.h"
 
-bool list_search_next(const struct search *s, struct list *l) {
+bool list_search_next(const struct search *s, struct list *l, int count) {
     const int n = l->n;
     if(!n)
         return false;
     const bool inv = *(const char*)s->b.p == '!';
     const char *const text = (const char*)s->b.p + inv;
     const char *const *const lines = (const char *const*)l->lines;
-    for(int i = l->i + 1; i != n; ++i)
-        if((bool)strstr(lines[i], text) != inv) {
-            list_move(l, i);
-            return true;
-        }
+    for(int i = l->i + 1; i != n; ++i) {
+        if((bool)strstr(lines[i], text) == inv)
+            continue;
+        if(--count)
+            continue;
+        list_move(l, i);
+        return true;
+    }
     return false;
 }
 
 enum subs_curses_key list_search_input(
-    struct search *s, struct list *l, int c)
+    struct search *s, struct list *l, int c, int count)
 {
     switch(c) {
     case ERR:
         return false;
     case '\n':
         if(!search_is_empty(s))
-            list_search_next(s, l);
+            list_search_next(s, l, count);
         else
             search_set_inactive(s);
         search_end(s);

@@ -267,7 +267,7 @@ static enum subs_curses_key input(struct videos *v, int c, int count) {
         if(!l->n)
             return true;
         if(!search_is_empty(&v->search)) {
-            if(list_search_next(&v->search, &v->list))
+            if(list_search_next(&v->search, &v->list, count))
                 render_border(l, v);
         } else if(!next_unwatched(v))
             return true;
@@ -324,10 +324,10 @@ end:
     return ret;
 }
 
-static enum subs_curses_key input_search(struct videos *v, int c) {
+static enum subs_curses_key input_search(struct videos *v, int c, int count) {
     struct search *const s = &v->search;
     struct list *const l = &v->list;
-    const enum subs_curses_key ret = list_search_input(s, l, c);
+    const enum subs_curses_key ret = list_search_input(s, l, c, count);
     if(ret == KEY_HANDLED) {
         list_box(l);
         render_border(l, v);
@@ -537,7 +537,7 @@ void videos_redraw(void *data) {
 enum subs_curses_key videos_input(void *data, int c, int count) {
     struct videos *const v = data;
     if(search_is_input_active(&v->search))
-        return input_search(v, c);
+        return input_search(v, c, count);
     else
         return input(v, c, count);
 }
