@@ -106,7 +106,7 @@ static enum subs_curses_key window_input(struct subs_curses *sc, int c);
 static enum subs_curses_key process_key(
     struct subs_curses *sc, struct input *input,
     struct source_bar *source_bar, struct subs_bar *subs_bar,
-    struct videos *videos, int c);
+    struct videos *videos, int c, int count);
 
 static bool process_input(
     struct subs_curses *sc, struct input *input, struct message *message,
@@ -115,12 +115,14 @@ static bool process_input(
 {
     if(process_messages(sc, message))
         return true;
+    const int count = sc->input_count;
+    sc->input_count = -1;
     switch(window_input(sc, c)) {
     case KEY_ERROR: return false;
     case KEY_HANDLED: return true;
     case KEY_IGNORED: break;
     }
-    return process_key(sc, input, source_bar, subs_bar, videos, c);
+    return process_key(sc, input, source_bar, subs_bar, videos, c, count);
 }
 
 bool process_messages(struct subs_curses *sc, struct message *message) {
@@ -144,11 +146,15 @@ enum subs_curses_key window_input(struct subs_curses *sc, int c) {
 enum subs_curses_key process_key(
     struct subs_curses *sc, struct input *input,
     struct source_bar *source_bar, struct subs_bar *subs_bar,
-    struct videos *videos, int c)
+    struct videos *videos, int c, int count)
 {
     struct window *const windows = sc->windows;
     const size_t cur = sc->cur_window, n = sc->n_windows;
     switch(c) {
+    case '0': case '1': case '2': case '3': case '4':
+    case '5': case '6': case '7': case '8': case '9':
+        sc->input_count = (c - '0') + ((count == -1) ? 0 : 10 * count);
+        return true;
     case 'l' & CTRL:
         for(size_t i = 0; i != n; ++i)
             if(windows[i].redraw)

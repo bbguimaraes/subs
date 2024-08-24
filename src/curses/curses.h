@@ -21,6 +21,7 @@ struct subs_curses {
     struct task_thread *task_thread;
     struct window *windows;
     size_t n_windows, cur_window;
+    int input_count;
     u8 flags;
     void *priv;
 };
