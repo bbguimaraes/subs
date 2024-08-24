@@ -40,7 +40,7 @@ void videos_set_sub(struct videos *v, int s);
 bool videos_leave(struct window *w);
 bool videos_enter(struct window *w);
 void videos_bar_redraw(struct window *w);
-enum subs_curses_key videos_input(struct window *w, int c);
+enum subs_curses_key videos_input(struct window *w, int c, int count);
 bool videos_resize(struct videos *v);
 bool videos_reload(struct videos *v);
 

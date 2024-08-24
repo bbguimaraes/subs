@@ -30,7 +30,7 @@ struct window {
     bool (*leave)(struct window*);
     bool (*enter)(struct window*);
     void (*redraw)(struct window*);
-    enum subs_curses_key (*input)(struct window*, int);
+    enum subs_curses_key (*input)(struct window*, int, int);
 };
 
 static unsigned int_digits(int i);

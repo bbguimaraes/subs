@@ -540,7 +540,8 @@ void videos_bar_redraw(struct window *w) {
     list_refresh(l);
 }
 
-enum subs_curses_key videos_input(struct window *w, int c) {
+enum subs_curses_key videos_input(struct window *w, int c, int count) {
+    (void)count;
     struct videos *const v = w->data;
     if(search_is_input_active(&v->search))
         return input_search(v, c);

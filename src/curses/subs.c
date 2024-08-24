@@ -351,7 +351,8 @@ void subs_bar_redraw(struct window *w) {
     list_refresh(l);
 }
 
-enum subs_curses_key subs_bar_input(struct window *w, int c) {
+enum subs_curses_key subs_bar_input(struct window *w, int c, int count) {
+    (void)count;
     struct subs_bar *b = w->data;
     if(b->menu.m)
         return input_menu(b, c);

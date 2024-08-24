@@ -109,8 +109,9 @@ static bool process_key(
             windows[i].redraw(windows + i);
         return true;
     }
+    const int count = sc->input_count;
     sc->input_count = -1;
-    switch(windows[cur].input(&windows[cur], c)) {
+    switch(windows[cur].input(&windows[cur], c, count == -1 ? 1 : count)) {
     case KEY_ERROR:
         return false;
     case KEY_HANDLED:
