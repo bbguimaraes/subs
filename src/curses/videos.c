@@ -29,7 +29,7 @@ struct reload_data {
     // reload_finish
     i64 *ids;
     char **lines;
-    int n, tag, sub, type;
+    int n, duration_seconds, tag, sub, type;
 };
 static bool reload_finish(void *d);
 
@@ -39,7 +39,11 @@ static void clear_selection(struct videos *v) {
 }
 
 static void render_border(struct list *l, struct videos *v) {
-    enum { BAR = 1, SPACE = 1 };
+    enum { BAR = 1, SPACE = 1, COLON = 1, DIGIT = 1 };
+    const int duration = v->duration_seconds;
+    const int hours = duration / 60 / 60;
+    const int minutes = duration / 60 % 60;
+    const int seconds = duration % 60;
     const int i = l->i, n = l->n, h = l->height - 2 * LIST_BORDER_SIZE;
     int x = -2 * SPACE;
     const int n_pages = n / h, page = i / h;
@@ -48,6 +52,10 @@ static void render_border(struct list *l, struct videos *v) {
         + (int)int_digits(n_pages)
         + BAR + 2 * SPACE;
     list_write_title(l, x, " %d %d/%d ", n, page, n_pages);
+    if(n) {
+        x -= (int)int_digits(hours) + 2 * (COLON + DIGIT + SPACE) + SPACE;
+        list_write_title(l, x, " %d:%02d:%02d", hours, minutes, seconds);
+    }
     if(!search_is_active(&v->search))
         return;
     const struct buffer search = v->search.b;
@@ -365,7 +373,8 @@ static void build_query_common(
 static void build_query_count(
     int tag, int type, int sub, u8 global_flags, u8 flags, struct buffer *b)
 {
-    buffer_append_str(b, "select count(*) from videos");
+    buffer_append_str(b,
+        "select count(*), sum(videos.duration_seconds) from videos");
     if(type)
         buffer_str_append_str(b, " join subs on videos.sub == subs.id");
     build_query_common(tag, type, sub, global_flags, flags, b);
@@ -382,6 +391,37 @@ static void build_query_list(
     buffer_str_append_str(b, " order by videos.timestamp, videos.id");
 }
 
+static bool query_counts(
+    sqlite3 *db, struct buffer *b, const int *param,
+    int *n, int *duration_seconds)
+{
+    bool ret = false;
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, b->p, (int)b->n, 0, &stmt, NULL);
+    if(!stmt)
+        goto end;
+    if(param && sqlite3_bind_int(stmt, 1, *param) != SQLITE_OK)
+        goto end;
+    for(;;)
+        switch(sqlite3_step(stmt)) {
+        case SQLITE_BUSY:
+            continue;
+        case SQLITE_DONE:
+            fprintf(stderr, "query returned no results");
+            ret = true;
+        default:
+            goto end;
+        case SQLITE_ROW:
+            *n = sqlite3_column_int(stmt, 0);
+            *duration_seconds = sqlite3_column_int(stmt, 1);
+            ret = true;
+            goto end;
+        }
+end:
+    ret = sqlite3_finalize(stmt) == SQLITE_OK && ret;
+    return ret;
+}
+
 static bool reload(void *p) {
     struct reload_data *const d = p;
     struct videos *const v = d->v;
@@ -391,8 +431,8 @@ static bool reload(void *p) {
     sqlite3 *const db = v->db;
     struct buffer sql = {0};
     build_query_count(tag, type, sub, global_flags, flags, &sql);
-    int n = 0;
-    if(!query_to_int(db, sql.p, sql.n - 1, param, &n))
+    int n = 0, duration_seconds = 0;
+    if(!query_counts(db, &sql, param, &n, &duration_seconds))
         goto err0;
     i64 *const ids = checked_calloc((size_t)n, sizeof(*ids));
     if(n && !ids)
@@ -406,6 +446,7 @@ static bool reload(void *p) {
         goto err2;
     free(d->sql.p);
     d->n = n;
+    d->duration_seconds = duration_seconds;
     d->ids = ids;
     d->lines = lines;
     if(!input_send_event(v->input, (struct input_event){
@@ -436,6 +477,7 @@ static bool reload_finish(void *p) {
     struct list *const l = &v->list;
     if(!list_init(l, NULL, d.n, d.ids, d.lines, v->x, v->y, v->width, LINES))
         goto err;
+    v->duration_seconds = d.duration_seconds;
     render_border(l, v);
     v->n = d.n;
     v->tag = d.tag;

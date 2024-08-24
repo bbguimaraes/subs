@@ -27,7 +27,7 @@ struct videos {
     struct task_thread *task_thread;
     struct list list;
     struct search search;
-    int n, x, y, width, height, tag, type, sub;
+    int n, duration_seconds, x, y, width, height, tag, type, sub;
     u8 flags;
 };
 
