@@ -64,7 +64,7 @@ void list_resize(
     struct list *l, struct window *(*window_new)(int, int, int, int),
     int x, int y, int width, int height);
 void list_move(struct list *l, int i);
-enum subs_curses_key list_input(struct list *l, int c);
+enum subs_curses_key list_input(struct list *l, int c, int count);
 void list_set_active(struct list *l, bool a);
 void list_set_name(struct list *l, const char *restrict fmt, ...);
 void list_write_title(struct list *l, int x, const char *restrict fmt, ...);

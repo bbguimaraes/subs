@@ -249,7 +249,7 @@ err0:
 
 static enum subs_curses_key input_lua(lua_State *L, int c);
 
-static enum subs_curses_key input(struct videos *v, int c) {
+static enum subs_curses_key input(struct videos *v, int c, int count) {
     struct list *const l = &v->list;
     switch(c) {
     case '/':
@@ -285,7 +285,7 @@ static enum subs_curses_key input(struct videos *v, int c) {
             return false;
         break;
     default:
-        switch(list_input(l, c)) {
+        switch(list_input(l, c, count)) {
         case KEY_ERROR:
             return false;
         case KEY_HANDLED:
@@ -535,12 +535,11 @@ void videos_redraw(void *data) {
 }
 
 enum subs_curses_key videos_input(void *data, int c, int count) {
-    (void)count;
     struct videos *const v = data;
     if(search_is_input_active(&v->search))
         return input_search(v, c);
     else
-        return input(v, c);
+        return input(v, c, count);
 }
 
 bool videos_resize(struct videos *v) {

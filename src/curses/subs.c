@@ -384,7 +384,6 @@ void subs_bar_redraw(void *data) {
 }
 
 enum subs_curses_key subs_bar_input(void *data, int c, int count) {
-    (void)count;
     struct subs_bar *b = data;
     if(b->menu.m)
         return input_menu(b, c);
@@ -410,7 +409,7 @@ enum subs_curses_key subs_bar_input(void *data, int c, int count) {
             list_search_next(&b->search, &b->list);
         break;
     case 'r': if(!reload_item(b)) return false; break;
-    default: return list_input(&b->list, c);
+    default: return list_input(&b->list, c, count);
     }
     list_refresh(&b->list);
     return true;
