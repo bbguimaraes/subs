@@ -19,6 +19,7 @@ struct subs_curses {
     lua_State *L;
     struct window *windows;
     size_t n_windows, cur_window;
+    int input_count;
     u8 flags;
     void *priv;
 };

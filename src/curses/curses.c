@@ -109,6 +109,7 @@ static bool process_key(
             windows[i].redraw(windows + i);
         return true;
     }
+    sc->input_count = -1;
     switch(windows[cur].input(&windows[cur], c)) {
     case KEY_ERROR:
         return false;
@@ -118,6 +119,10 @@ static bool process_key(
         break;
     }
     switch(c) {
+    case '0': case '1': case '2': case '3': case '4':
+    case '5': case '6': case '7': case '8': case '9':
+        sc->input_count = (c - '0') + ((count == -1) ? 0 : 10 * count);
+        return true;
     case 'l' & CTRL:
         for(size_t i = 0; i != n; ++i)
             windows[i].redraw(windows + i);
