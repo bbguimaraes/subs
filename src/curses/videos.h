@@ -40,7 +40,7 @@ bool videos_set_order(struct videos *v, u8 o);
 bool videos_leave(void *data);
 bool videos_enter(void *data);
 void videos_redraw(void *data);
-enum subs_curses_key videos_input(void *data, int c);
+enum subs_curses_key videos_input(void *data, int c, int count);
 bool videos_resize(struct videos *v);
 bool videos_reload(struct videos *v);
 

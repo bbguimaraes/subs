@@ -241,7 +241,8 @@ void source_bar_redraw(void *data) {
     list_refresh(l);
 }
 
-enum subs_curses_key source_bar_input(void *data, int c) {
+enum subs_curses_key source_bar_input(void *data, int c, int count) {
+    (void)count;
     struct source_bar *b = data;
     if(search_is_input_active(&b->search))
         return input_search(b, c);

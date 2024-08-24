@@ -31,7 +31,7 @@ struct window {
     bool (*leave)(void*);
     bool (*enter)(void*);
     void (*redraw)(void*);
-    enum subs_curses_key (*input)(void*, int);
+    enum subs_curses_key (*input)(void*, int, int);
 };
 
 static unsigned int_digits(int i);

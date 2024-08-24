@@ -534,7 +534,8 @@ void videos_redraw(void *data) {
     list_refresh(l);
 }
 
-enum subs_curses_key videos_input(void *data, int c) {
+enum subs_curses_key videos_input(void *data, int c, int count) {
+    (void)count;
     struct videos *const v = data;
     if(search_is_input_active(&v->search))
         return input_search(v, c);

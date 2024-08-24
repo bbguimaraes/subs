@@ -383,7 +383,8 @@ void subs_bar_redraw(void *data) {
     list_refresh(l);
 }
 
-enum subs_curses_key subs_bar_input(void *data, int c) {
+enum subs_curses_key subs_bar_input(void *data, int c, int count) {
+    (void)count;
     struct subs_bar *b = data;
     if(b->menu.m)
         return input_menu(b, c);

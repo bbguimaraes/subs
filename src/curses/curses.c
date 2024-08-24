@@ -102,7 +102,8 @@ static bool resize(
 }
 
 static bool process_messages(struct subs_curses *sc, struct message *message);
-static enum subs_curses_key window_input(struct subs_curses *sc, int c);
+static enum subs_curses_key window_input(
+    struct subs_curses *sc, int c, int count);
 static enum subs_curses_key process_key(
     struct subs_curses *sc, struct input *input,
     struct source_bar *source_bar, struct subs_bar *subs_bar,
@@ -117,7 +118,7 @@ static bool process_input(
         return true;
     const int count = sc->input_count;
     sc->input_count = -1;
-    switch(window_input(sc, c)) {
+    switch(window_input(sc, c, count)) {
     case KEY_ERROR: return false;
     case KEY_HANDLED: return true;
     case KEY_IGNORED: break;
@@ -136,11 +137,11 @@ bool process_messages(struct subs_curses *sc, struct message *message) {
     return true;
 }
 
-enum subs_curses_key window_input(struct subs_curses *sc, int c) {
+enum subs_curses_key window_input(struct subs_curses *sc, int c, int count) {
     struct window *const w = sc->windows + sc->cur_window;
     if(!w->input)
         return KEY_IGNORED;
-    return w->input(w->data, c);
+    return w->input(w->data, c, count == -1 ? 1 : count);
 }
 
 enum subs_curses_key process_key(
