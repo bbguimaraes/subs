@@ -197,10 +197,10 @@ static enum subs_curses_key input_menu(struct subs_bar *b, int c) {
     }
 }
 
-static enum subs_curses_key input_search(struct subs_bar *b, int c) {
+static enum subs_curses_key input_search(struct subs_bar *b, int c, int count) {
     struct search *const s = &b->search;
     struct list *const l = &b->list;
-    const enum subs_curses_key ret = list_search_input(s, l, c);
+    const enum subs_curses_key ret = list_search_input(s, l, c, count);
     if(ret == KEY_HANDLED) {
         render_border(l, s, b->flags, b->order);
         list_refresh(l);
@@ -356,7 +356,7 @@ enum subs_curses_key subs_bar_input(struct window *w, int c, int count) {
     if(b->menu.m)
         return input_menu(b, c);
     if(search_is_input_active(&b->search))
-        return input_search(b, c);
+        return input_search(b, c, count);
     struct subs_curses *const s = b->s;
     struct videos *const v = b->videos;
     switch(c) {
@@ -379,7 +379,7 @@ enum subs_curses_key subs_bar_input(struct window *w, int c, int count) {
         break;
     case 'n':
         if(!search_is_empty(&b->search))
-            list_search_next(&b->search, &b->list);
+            list_search_next(&b->search, &b->list, count);
         break;
     case 'r': if(!reload_item(b)) return false; break;
     default: return list_input(&b->list, c, count);

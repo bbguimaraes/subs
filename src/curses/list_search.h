@@ -8,7 +8,8 @@
 struct list;
 struct search;
 
-bool list_search_next(const struct search *s, struct list *l);
-enum subs_curses_key list_search_input(struct search *s, struct list *l, int c);
+bool list_search_next(const struct search *s, struct list *l, int count);
+enum subs_curses_key list_search_input(
+    struct search *s, struct list *l, int c, int count);
 
 #endif
