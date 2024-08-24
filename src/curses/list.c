@@ -199,21 +199,21 @@ void list_move(struct list *l, int i) {
     }
 }
 
-enum subs_curses_key list_input(struct list *l, int c) {
+enum subs_curses_key list_input(struct list *l, int c, int count) {
     enum { CTRL = 0x1f };
     const int h = window_height(l->sub);
     const int i = l->i;
     switch(c) {
-    case CTRL & 'e': offset(l, 1); return true;
-    case CTRL & 'y': offset(l, -1); return true;
+    case CTRL & 'e': offset(l, count); return true;
+    case CTRL & 'y': offset(l, -count); return true;
     case 'G': case KEY_END: list_move(l, l->n - 1); return true;
     case 'H': list_move(l, l->offset); return true;
     case 'L': list_move(l, l->offset + l->height - 3); return true;
     case 'M': list_move(l, l->offset + (l->height - 2) / 2 - 1); return true;
-    case 'b': case KEY_PPAGE: offset(l, -h); return true;
-    case 'f': case KEY_NPAGE: offset(l, h); return true;
-    case 'j': case KEY_DOWN: list_move(l, i + 1); return true;
-    case 'k': case KEY_UP: list_move(l, i - 1); return true;
+    case 'b': case KEY_PPAGE: offset(l, -count * h); return true;
+    case 'f': case KEY_NPAGE: offset(l, count * h); return true;
+    case 'j': case KEY_DOWN: list_move(l, i + count); return true;
+    case 'k': case KEY_UP: list_move(l, i - count); return true;
     case 'g': case KEY_HOME: list_move(l, 0); return true;
     default: return KEY_IGNORED;
     }
