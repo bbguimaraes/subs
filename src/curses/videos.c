@@ -188,19 +188,22 @@ end:
     return true;
 }
 
-static bool next_unwatched(struct videos *v) {
+static bool next_unwatched(struct videos *v, int count) {
     struct list *l = &v->list;
     const char *const *const lines = (const char *const*)l->lines;
     const int n = l->n;
     int i = l->i;
     if(item_watched(lines[i]))
         ++i;
-    for(; i != n; ++i)
-        if(item_watched(lines[i])) {
-            list_move(l, i);
-            render_border(l, v);
-            return true;
-        }
+    for(; i != n; ++i) {
+        if(!item_watched(lines[i]))
+            continue;
+        if(--count)
+            continue;
+        list_move(l, i);
+        render_border(l, v);
+        return true;
+    }
     return false;
 }
 
@@ -247,7 +250,7 @@ err0:
     return ret;
 }
 
-static enum subs_curses_key input_lua(lua_State *L, int c);
+static enum subs_curses_key input_lua(lua_State *L, int c, int count);
 
 static enum subs_curses_key input(struct videos *v, int c, int count) {
     struct list *const l = &v->list;
@@ -269,7 +272,7 @@ static enum subs_curses_key input(struct videos *v, int c, int count) {
         if(!search_is_empty(&v->search)) {
             if(list_search_next(&v->search, &v->list, count))
                 render_border(l, v);
-        } else if(!next_unwatched(v))
+        } else if(!next_unwatched(v, count))
             return true;
         break;
     case 'o':
@@ -293,7 +296,7 @@ static enum subs_curses_key input(struct videos *v, int c, int count) {
             render_border(l, v);
             break;
         case KEY_IGNORED:
-            switch(input_lua(v->s->L, c)) {
+            switch(input_lua(v->s->L, c, count)) {
             case KEY_ERROR:
                 return false;
             case KEY_IGNORED:
@@ -309,7 +312,7 @@ static enum subs_curses_key input(struct videos *v, int c, int count) {
     return true;
 }
 
-static enum subs_curses_key input_lua(lua_State *L, int c) {
+static enum subs_curses_key input_lua(lua_State *L, int c, int count) {
     const int top = lua_gettop(L);
     enum subs_curses_key ret = KEY_IGNORED;
     lua_pushcfunction(L, subs_lua_msgh);
@@ -317,7 +320,8 @@ static enum subs_curses_key input_lua(lua_State *L, int c) {
         goto end;
     ret = KEY_ERROR;
     lua_pushinteger(L, c);
-    if(lua_pcall(L, 1, 1, top + 1) == LUA_OK)
+    lua_pushinteger(L, count);
+    if(lua_pcall(L, 2, 1, top + 1) == LUA_OK)
         ret = (int)lua_tointeger(L, -1);
 end:
     lua_settop(L, top);
