@@ -25,15 +25,14 @@ void subs_menu_init(
     const int height = window_height(w), width = window_width(w);
     struct window *const mw =
         window_new(w, height, width, window_y(w), window_x(w));
-    window_print(mw, 0, 0, "%s", title);
     struct window *const sub = window_derive(mw, height - 1, width, 1, 0);
     set_menu_win(cm, window_handle(mw));
     set_menu_sub(cm, window_handle(sub));
     set_menu_format(cm, n, 0);
-    window_refresh(mw);
     m->m = cm;
     m->w = mw;
     m->sub = sub;
+    m->title = title;
 }
 
 void menu_destroy(struct menu *m) {
@@ -50,6 +49,7 @@ void menu_destroy(struct menu *m) {
     free(items);
     window_destroy(m->sub);
     window_destroy(m->w);
+    m->m = NULL;
 }
 
 int menu_current(struct menu *m) {
@@ -61,12 +61,14 @@ void menu_set_current(struct menu *m, int i) {
     set_current_item(cm, menu_items(cm)[i]);
 }
 
-void menu_display(struct menu *m) {
-    post_menu(M(m));
+void menu_refresh(struct menu *m) {
+    wrefresh(menu_win(M(m)));
 }
 
-void menu_refresh(struct menu *m) {
-    wrefresh(menu_sub(M(m)));
+void menu_redraw(struct menu *m) {
+    MENU *const cm = m->m;
+    mvwprintw(menu_win(cm), 0, 0, "%s", m->title);
+    post_menu(cm);
 }
 
 bool menu_input(struct menu *m, int c) {

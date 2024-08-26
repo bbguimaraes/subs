@@ -8,6 +8,7 @@ struct window;
 struct menu {
     void *m;
     struct window *w, *sub;
+    const char *title;
 };
 
 void subs_menu_init(
@@ -16,8 +17,8 @@ void subs_menu_init(
 void menu_destroy(struct menu *m);
 int menu_current(struct menu *m);
 void menu_set_current(struct menu *m, int i);
-void menu_display(struct menu *m);
 void menu_refresh(struct menu *m);
+void menu_redraw(struct menu *m);
 bool menu_input(struct menu *m, int c);
 
 #endif
