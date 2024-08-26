@@ -202,7 +202,7 @@ bool source_bar_reload(struct source_bar *b) {
     ids[i_types + 0] = SUBS_LBRY;
     ids[i_types + 1] = SUBS_YOUTUBE;
     if(!list_init(
-        &b->list, NULL, (int)n - 1, ids, lines, b->x, b->y, b->width, n + 1
+        &b->list, NULL, (int)n - 1, ids, lines, b->x, b->y, b->width, b->height
     ))
         goto err2;
     render_border(&b->list, b->s->flags, &b->search);
@@ -232,7 +232,9 @@ bool source_bar_leave(void *data) {
 }
 
 bool source_bar_enter(void *data) {
-    list_set_active(&((struct source_bar*)data)->list, true);
+    struct list *const l = &((struct source_bar*)data)->list;
+    list_set_active(l, true);
+    list_refresh(l);
     curs_set(0);
     return true;
 }
@@ -241,6 +243,12 @@ void source_bar_redraw(void *data) {
     struct list *const l = &((struct source_bar*)data)->list;
     list_redraw(l);
     list_refresh(l);
+}
+
+void source_bar_resize(struct source_bar *b) {
+    list_resize(&b->list, NULL, b->x, b->y, b->width, b->height);
+    render_border(&b->list, b->s->flags, &b->search);
+    list_refresh(&b->list);
 }
 
 enum subs_curses_key source_bar_input(void *data, int c, int count) {

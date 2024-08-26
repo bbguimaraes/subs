@@ -38,6 +38,7 @@ void subs_bar_destroy(struct subs_bar *b);
 bool subs_bar_leave(void *data);
 bool subs_bar_enter(void *data);
 void subs_bar_redraw(void *data);
+void subs_bar_resize(struct subs_bar *b);
 enum subs_curses_key subs_bar_input(void *data, int c, int count);
 
 #endif

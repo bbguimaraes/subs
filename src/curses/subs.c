@@ -335,7 +335,7 @@ bool subs_bar_reload(struct subs_bar *b) {
     if(!populate(db, sql.p, sql.n - 1, param, width - 4, ids, lines))
         goto err2;
     if(!list_init(
-        &b->list, NULL, n, ids, lines, b->x, b->y, width, LINES - b->y
+        &b->list, NULL, n, ids, lines, b->x, b->y, width, b->height
     ))
         goto err2;
     free(sql.p);
@@ -381,6 +381,12 @@ void subs_bar_redraw(void *data) {
     struct list *l = &b->list;
     list_redraw(l);
     list_refresh(l);
+}
+
+void subs_bar_resize(struct subs_bar *b) {
+    list_resize(&b->list, NULL, b->x, b->y, b->width, b->height);
+    render_border(&b->list, &b->search, b->flags, b->order);
+    list_refresh(&b->list);
 }
 
 enum subs_curses_key subs_bar_input(void *data, int c, int count) {

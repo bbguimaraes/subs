@@ -31,6 +31,7 @@ void source_bar_destroy(struct source_bar *b);
 bool source_bar_leave(void *data);
 bool source_bar_enter(void *data);
 void source_bar_redraw(void *data);
+void source_bar_resize(struct source_bar *b);
 enum subs_curses_key source_bar_input(void *data, int c, int count);
 
 #endif

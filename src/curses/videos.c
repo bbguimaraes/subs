@@ -479,7 +479,9 @@ static bool reload_finish(void *p) {
     free(p);
     struct videos *const v = d.v;
     struct list *const l = &v->list;
-    if(!list_init(l, NULL, d.n, d.ids, d.lines, v->x, v->y, v->width, LINES))
+    if(!list_init(
+        l, NULL, d.n, d.ids, d.lines, v->x, v->y, v->width, v->height
+    ))
         goto err;
     v->duration_seconds = d.duration_seconds;
     render_border(l, v);
@@ -527,8 +529,10 @@ bool videos_leave(void *data) {
 }
 
 bool videos_enter(void *data) {
+    struct list *const l = &((struct videos*)data)->list;
+    list_set_active(l, true);
+    list_refresh(l);
     curs_set(0);
-    list_set_active(&((struct videos*)data)->list, true);
     return true;
 }
 
@@ -546,20 +550,16 @@ enum subs_curses_key videos_input(void *data, int c, int count) {
         return input(v, c, count);
 }
 
-bool videos_resize(struct videos *v) {
+void videos_resize(struct videos *v) {
     struct list *const l = &v->list;
-    if(v->flags & VIDEOS_ACTIVE)
-        list_resize(l, NULL, v->x, 0, v->width, LINES);
-    else if(!list_init(l, NULL, 0, NULL, NULL, v->x, v->y, v->width, LINES))
-        return false;
+    list_resize(l, NULL, v->x, v->y, v->width, v->height);
     render_border(l, v);
     list_refresh(l);
-    return true;
 }
 
 bool videos_reload(struct videos *v) {
     struct list *const l = &v->list;
-    if(!list_init(l, NULL, 0, NULL, NULL, v->x, v->y, v->width, LINES))
+    if(!list_init(l, NULL, 0, NULL, NULL, v->x, v->y, v->width, v->height))
         return false;
     list_refresh(l);
     if(~v->flags & VIDEOS_ACTIVE)
