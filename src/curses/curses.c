@@ -75,6 +75,23 @@ static bool window_enter(struct subs_curses *s, struct window *w) {
     return !w->enter || w->enter(w);
 }
 
+static bool set_terminal_size() {
+    int x, y;
+    if(!get_terminal_size(&x, &y))
+        return false;
+    resizeterm(y, x);
+    return true;
+}
+
+static bool update_pos(
+    struct subs_curses *sc, struct message *message,
+    struct source_bar *source_bar, struct subs_bar *subs_bar,
+    struct videos *videos)
+{
+    return source_bar_update_count(source_bar)
+        && calc_pos_lua(sc->L, message, source_bar, subs_bar, videos);
+}
+
 static bool resize(
     struct subs_curses *sc, struct message *message,
     struct source_bar *source_bar, struct subs_bar *subs_bar,
@@ -83,17 +100,16 @@ static bool resize(
     if(!(sc->flags & RESIZED))
         return true;
     sc->flags = (u8)(sc->flags & ~RESIZED);
-    int x, y;
-    if(!get_terminal_size(&x, &y))
+    if(!set_terminal_size())
         return false;
-    resizeterm(y, x);
     clear();
     refresh();
-    return source_bar_update_count(source_bar)
-        && calc_pos_lua(sc->L, message, source_bar, subs_bar, videos)
-        && source_bar_reload(source_bar)
-        && subs_bar_reload(subs_bar)
-        && videos_resize(videos);
+    if(!update_pos(sc, message, source_bar, subs_bar, videos))
+        return false;
+    source_bar_resize(source_bar);
+    subs_bar_resize(subs_bar);
+    videos_resize(videos);
+    return true;
 }
 
 static bool process_key(
@@ -251,7 +267,6 @@ bool subs_start_tui(const struct subs *s) {
     struct subs_curses sc = {
         .db = s->db,
         .L = s->L,
-        .flags = RESIZED,
         .priv = &message,
     };
     struct videos videos = {
@@ -291,7 +306,15 @@ bool subs_start_tui(const struct subs *s) {
     sc.n_windows = ARRAY_SIZE(windows);
     init_lua(s->L, &sc, &videos);
     bool ret = false;
-    if(!resize(&sc, &message, &source_bar, &subs_bar, &videos))
+    if(!set_terminal_size())
+        goto end;
+    refresh();
+    if(!(
+        update_pos(&sc, &message, &source_bar, &subs_bar, &videos)
+        && source_bar_reload(&source_bar)
+        && subs_bar_reload(&subs_bar)
+        && videos_reload(&videos)
+    ))
         goto end;
     struct input input = {0};
     if(!input_init(&input))

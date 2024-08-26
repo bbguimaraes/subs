@@ -178,6 +178,9 @@ void list_resize(
     struct list *l, struct window *(*window_new)(int, int, int, int),
     int x, int y, int width, int height)
 {
+    window_new = window_new ? window_new
+        : l->w ? l->w->new
+        : NULL;
     resize(l, window_new, x, y, width, height);
     limit_offset_after_resize(l);
     if(l->n)

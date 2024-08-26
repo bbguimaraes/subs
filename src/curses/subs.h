@@ -33,6 +33,7 @@ void subs_bar_destroy(struct subs_bar *b);
 bool subs_bar_leave(struct window *w);
 bool subs_bar_enter(struct window *w);
 void subs_bar_redraw(struct window *w);
+void subs_bar_resize(struct subs_bar *b);
 enum subs_curses_key subs_bar_input(struct window *w, int c, int count);
 
 #endif
