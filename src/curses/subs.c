@@ -185,12 +185,10 @@ static enum subs_curses_key input_menu(struct subs_bar *b, int c) {
     case '\n':
         b->order = (u8)menu_current(m);
         menu_destroy(m);
-        m->m = NULL;
         return subs_bar_reload(b);
     case ESC:
     case 'q':
         menu_destroy(m);
-        m->m = NULL;
         list_redraw(&b->list);
         list_refresh(&b->list);
         return true;
@@ -253,7 +251,7 @@ static void show_ordering_menu(struct subs_bar *b) {
         b->flags & ORDER_DESC ? "Order by (desc.):" : "Order by:",
         MENU_OPTIONS, MENU_DESC);
     menu_set_current(m, b->order);
-    menu_display(m);
+    menu_redraw(m);
     menu_refresh(m);
 }
 
@@ -346,9 +344,16 @@ bool subs_bar_enter(struct window *w) {
 }
 
 void subs_bar_redraw(struct window *w) {
-    struct list *l = &((struct subs_bar*)w->data)->list;
-    list_redraw(l);
-    list_refresh(l);
+    struct subs_bar *const b = (struct subs_bar*)w->data;
+    struct menu *const m = &b->menu;
+    if(m->m) {
+        menu_redraw(m);
+        menu_refresh(m);
+    } else {
+        struct list *const l = &b->list;
+        list_redraw(l);
+        list_refresh(l);
+    }
 }
 
 void subs_bar_resize(struct subs_bar *b) {
