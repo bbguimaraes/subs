@@ -105,3 +105,11 @@ bool form_input(struct form *f, int c) {
     wrefresh(form_win(cf));
     return true;
 }
+
+size_t form_field_count(struct form *f) {
+    return (size_t)field_count(P(f)->f);
+}
+
+const char *form_buffer(struct form *f, size_t i) {
+    return field_buffer(form_fields(P(f)->f)[i], 0);
+}

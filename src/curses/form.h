@@ -35,5 +35,7 @@ void form_destroy(struct form *f);
 void form_refresh(struct form *f);
 void form_redraw(struct form *f);
 bool form_input(struct form *f, int c);
+size_t form_field_count(struct form *f);
+const char *form_buffer(struct form *f, size_t i);
 
 #endif

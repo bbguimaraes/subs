@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "../buffer.h"
+#include "../db.h"
 #include "../util.h"
 
 #include "curses.h"
@@ -19,6 +20,8 @@ enum flags {
 
 struct tags_form {
     struct form f;
+    i64 sub;
+    i64 *ids;
 };
 
 static const char *MENU_OPTIONS[] = {
@@ -221,10 +224,13 @@ static bool show_tag_form(struct subs_bar *b) {
     if(!f)
         goto e1;
     b->tags_form = f;
+    *f = (struct tags_form) {
+        .sub = id,
+        .ids = tag_ids,
+    };
     if(!subs_form_init(&f->f, b->list.sub, "Tags:", 2 * n_tags, fields))
         goto e2;
     free(fields);
-    free(tag_ids);
     for(size_t i = 0; i != n_tags; ++i)
         free(tags[i]);
     free(tags);
@@ -308,9 +314,36 @@ e0:
     return false;
 }
 
+static bool set_tags(sqlite3 *db, struct tags_form *f) {
+    const char sql_add[] =
+        "insert or ignore into subs_tags (sub, tag) values (?, ?)";
+    const char sql_rm[] =
+        "delete from subs_tags where sub == ? and tag == ?";
+    const i64 sub = f->sub;
+    const i64 *const ids = f->ids;
+    const size_t n = form_field_count(&f->f) >> 1;
+    for(size_t i = 0; i != n; ++i) {
+        const char *const b = form_buffer(&f->f, 2 * i);
+        const bool add = b[0] != ' ';
+        const char *const sql = add ? sql_add : sql_rm;
+        const int len = (add ? sizeof(sql_add) : sizeof(sql_rm)) - 1;
+        sqlite3_stmt *stmt = NULL;
+        sqlite3_prepare_v3(db, sql, len, 0, &stmt, NULL);
+        const bool ok =
+            stmt
+            && sqlite3_bind_int64(stmt, 1, sub) == SQLITE_OK
+            && sqlite3_bind_int64(stmt, 2, ids[i]) == SQLITE_OK
+            && step_stmt_once(stmt);
+        if(sqlite3_finalize(stmt) != SQLITE_OK || !ok)
+            return false;
+    }
+    return true;
+}
+
 bool destroy_tags_form(struct subs_bar *b) {
     struct tags_form *const f = b->tags_form;
     form_destroy(&f->f);
+    free(f->ids);
     free(f);
     b->tags_form = NULL;
     list_redraw(&b->list);
@@ -345,6 +378,9 @@ static enum subs_curses_key input_form(struct subs_bar *b, int c) {
     switch(c) {
     case ESC:
         return destroy_tags_form(b);
+    case '\n': ;
+        const bool ret = set_tags(b->s->db, f);
+        return destroy_tags_form(b) && ret;
     }
     return form_input(&f->f, c);
 }
