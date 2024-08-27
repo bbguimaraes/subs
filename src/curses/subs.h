@@ -19,6 +19,7 @@ struct subs_bar {
     struct list list;
     struct search search;
     struct menu menu;
+    void *tags_form;
     int x, y, width, height, tag, type;
     u8 flags, order;
 };
