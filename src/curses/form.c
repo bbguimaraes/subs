@@ -4,6 +4,7 @@
 
 #include "../util.h"
 
+#include "const.h"
 #include "window.h"
 
 #define P(f) ((struct private*)f->data)
@@ -97,7 +98,42 @@ void form_redraw(struct form *f) {
 
 bool form_input(struct form *f, int c) {
     FORM *const cf = P(f)->f;
-    form_driver(cf, c);
+    FIELD *const field = current_field(cf);
+    if(field_type(field) == TYPE_CHECKBOX)
+        switch(c) {
+        default: break;
+        case ' ':
+            set_field_buffer(field, 0, (const char[]){
+                *field_buffer(field, 0) == ' ' ? 'x' : ' ', 0});
+            goto end;
+    }
+    switch(c) {
+    case DEL:
+        form_driver(cf, REQ_PREV_CHAR);
+        /* fallthrough */
+    case KEY_DC:
+        form_driver(cf, REQ_DEL_CHAR);
+        form_driver(cf, REQ_VALIDATION);
+        break;
+    case KEY_LEFT:
+        form_driver(cf, REQ_PREV_CHAR);
+        break;
+    case KEY_RIGHT:
+        form_driver(cf, REQ_NEXT_CHAR);
+        break;
+    case '\t':
+    case KEY_DOWN:
+        form_driver(cf, REQ_NEXT_FIELD);
+        break;
+    case KEY_BTAB:
+    case KEY_UP:
+        form_driver(cf, REQ_PREV_FIELD);
+        break;
+    default:
+        form_driver(cf, c);
+        break;
+    }
+end:
     wrefresh(form_win(cf));
     return true;
 }
