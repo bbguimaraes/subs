@@ -7,6 +7,7 @@
 #include "../util.h"
 
 #include "curses.h"
+#include "form.h"
 #include "videos.h"
 
 #include "window/list_search.h"
@@ -14,6 +15,10 @@
 enum flags {
     UNTAGGED =   1u << 0,
     ORDER_DESC = 1u << 1,
+};
+
+struct tags_form {
+    struct form f;
 };
 
 static const char *MENU_OPTIONS[] = {
@@ -174,6 +179,146 @@ end:
     return (sqlite3_finalize(stmt) == SQLITE_OK) && ret;
 }
 
+static bool get_tags(
+    sqlite3 *db, int id,
+    size_t *n, i64 **ids, char ***tags, bool **p);
+
+static bool show_tag_form(struct subs_bar *b) {
+    const struct list *const l = &b->list;
+    if(!l->n)
+        return true;
+    sqlite3 *const db = b->s->db;
+    const int id = (int)l->ids[l->i];
+    size_t n_tags;
+    i64 *tag_ids;
+    char **tags;
+    bool *tags_set;
+    if(!get_tags(db, id, &n_tags, &tag_ids, &tags, &tags_set))
+        return false;
+    struct form_field *const fields =
+        checked_calloc(2 * n_tags, sizeof(*fields));
+    if(!fields)
+        goto e0;
+    for(size_t i = 0; i != n_tags; ++i) {
+        fields[2 * i] = (struct form_field) {
+            .type = FIELD_TYPE_CHECKBOX,
+            .text = tags_set[i] ? "x" : " ",
+            .x = 1,
+            .y = (int)i,
+            .width = 1,
+            .height = 1,
+        };
+        fields[2 * i + 1] = (struct form_field) {
+            .type = FIELD_TYPE_LABEL,
+            .text = tags[i],
+            .x = 0,
+            .y = (int)i,
+            .width = /*XXX*/16,
+            .height = 1,
+        };
+    }
+    struct tags_form *const f = checked_malloc(sizeof(*f));
+    if(!f)
+        goto e1;
+    b->tags_form = f;
+    if(!subs_form_init(&f->f, b->list.sub, "Tags:", 2 * n_tags, fields))
+        goto e2;
+    free(fields);
+    free(tag_ids);
+    for(size_t i = 0; i != n_tags; ++i)
+        free(tags[i]);
+    free(tags);
+    free(tags_set);
+    form_redraw(&f->f);
+    form_refresh(&f->f);
+    curs_set(1);
+    return true;
+e2:
+    free(f);
+e1:
+    free(fields);
+e0:
+    free(tag_ids);
+    for(size_t i = 0; i != n_tags; ++i)
+        free(tags[i]);
+    free(tags);
+    return false;
+}
+
+static bool get_tags(
+    sqlite3 *db, int id,
+    size_t *p_n, i64 **p_ids, char ***p_tags, bool **p_set)
+{
+    const char count_sql[] = "select count(*) from tags";
+    int n;
+    if(!query_to_int(db, count_sql, sizeof(count_sql) - 1, NULL, &n))
+        return false;
+    i64 *const ids = checked_calloc((size_t)n + 1, sizeof(*ids));
+    if(!ids)
+        return false;
+    char **const tags = checked_calloc((size_t)n + 1, sizeof(*tags));
+    if(!tags)
+        goto e0;
+    bool *const set = checked_calloc((size_t)n + 1, sizeof(*set));
+    if(!set)
+        goto e1;
+    const char sql[] =
+        "select tags.id, tags.name, subs_tags.sub not null from tags"
+        " left outer join"
+            " subs_tags on tags.id == subs_tags.tag and subs_tags.sub == ?"
+        " order by tags.name";
+    sqlite3_stmt *stmt = NULL;
+    sqlite3_prepare_v3(db, sql, sizeof(sql) - 1, 0, &stmt, NULL);
+    if(!stmt)
+        goto e2;
+    if(sqlite3_bind_int(stmt, 1, id) != SQLITE_OK)
+        goto e3;
+    for(int i = 0;;) {
+        switch(sqlite3_step(stmt)) {
+        case SQLITE_BUSY: continue;
+        case SQLITE_DONE: break;
+        default: goto e3;
+        case SQLITE_ROW:
+            ids[i] = sqlite3_column_int64(stmt, 0);
+            tags[i] = sprintf_alloc(
+                "[ ] %s", (char*)sqlite3_column_text(stmt, 1));
+            set[i] = sqlite3_column_int(stmt, 2);
+            ++i;
+            continue;
+        }
+        break;
+    }
+    if(sqlite3_finalize(stmt) != SQLITE_OK)
+        goto e2;
+    *p_n = (size_t)n;
+    *p_ids = ids;
+    *p_tags = tags;
+    *p_set = set;
+    return true;
+e3:
+    sqlite3_finalize(stmt);
+e2:
+    for(int i = 0; i != n; ++i)
+        free(tags[i]);
+    free(tags);
+e1:
+    free(set);
+e0:
+    free(ids);
+    return false;
+}
+
+bool destroy_tags_form(struct subs_bar *b) {
+    struct tags_form *const f = b->tags_form;
+    form_destroy(&f->f);
+    free(f);
+    b->tags_form = NULL;
+    list_redraw(&b->list);
+    list_refresh(&b->list);
+    curs_set(0);
+    return true;
+}
+
 static enum subs_curses_key input_menu(struct subs_bar *b, int c) {
     struct menu *const m = &b->menu;
     switch(c) {
@@ -193,6 +338,15 @@ static enum subs_curses_key input_menu(struct subs_bar *b, int c) {
         list_refresh(&b->list);
         return true;
     }
+}
+
+static enum subs_curses_key input_form(struct subs_bar *b, int c) {
+    struct tags_form *const f = b->tags_form;
+    switch(c) {
+    case ESC:
+        return destroy_tags_form(b);
+    }
+    return form_input(&f->f, c);
 }
 
 static enum subs_curses_key input_search(struct subs_bar *b, int c, int count) {
@@ -377,9 +531,13 @@ bool subs_bar_enter(void *data) {
 void subs_bar_redraw(void *data) {
     struct subs_bar *const b = data;
     struct menu *const m = &b->menu;
+    struct tags_form *const f = b->tags_form;
     if(m->m) {
         menu_redraw(m);
         menu_refresh(m);
+    } else if(f) {
+        form_redraw(&f->f);
+        form_refresh(&f->f);
     } else {
         struct list *const l = &b->list;
         list_redraw(l);
@@ -397,6 +555,8 @@ enum subs_curses_key subs_bar_input(void *data, int c, int count) {
     struct subs_bar *b = data;
     if(b->menu.m)
         return input_menu(b, c);
+    if(b->tags_form)
+        return input_form(b, c);
     if(search_is_input_active(&b->search))
         return input_search(b, c, count);
     switch(c) {
@@ -419,6 +579,8 @@ enum subs_curses_key subs_bar_input(void *data, int c, int count) {
             list_search_next(&b->search, &b->list, count);
         break;
     case 'r': if(!reload_item(b)) return false; break;
+    case 't':
+        return show_tag_form(b);
     default: return list_input(&b->list, c, count);
     }
     list_refresh(&b->list);

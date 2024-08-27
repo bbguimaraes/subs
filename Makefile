@@ -19,6 +19,7 @@ all: $(BIN)
 subs: \
 	src/buffer.o \
 	src/curses/curses.o \
+	src/curses/form.o \
 	src/curses/input.o \
 	src/curses/lua/lua.o \
 	src/curses/menu.o \
@@ -59,6 +60,7 @@ tests/curses: \
 tests/subs: \
 	src/buffer.o \
 	src/curses/curses.o \
+	src/curses/form.o \
 	src/curses/input.o \
 	src/curses/lua/lua.o \
 	src/curses/menu.o \
