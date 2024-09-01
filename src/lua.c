@@ -2,6 +2,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#include <glob.h>
+
 #include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
@@ -9,6 +11,20 @@
 #include "log.h"
 #include "subs.h"
 #include "util.h"
+
+static int glob_lua(lua_State *L) {
+    const char *pattern = luaL_checkstring(L, 1);
+    glob_t paths;
+    switch(glob(pattern, 0, NULL, &paths)) {
+    case GLOB_NOMATCH: return 0;
+    case GLOB_NOSPACE: return luaL_error(L, "glob(%s): NOSPACE\n", pattern);
+    case GLOB_ABORTED: return luaL_error(L, "glob(%s): ABORTED\n", pattern);
+    }
+    for(size_t i = 0; i != paths.gl_pathc; ++i)
+        lua_pushstring(L, paths.gl_pathv[i]);
+    globfree(&paths);
+    return (int)paths.gl_pathc;
+}
 
 static void new_userdata_ptr(lua_State *L, const void *p) {
     *(const void**)lua_newuserdatauv(L, sizeof(p), 0) = p;
@@ -130,6 +146,8 @@ static bool err(lua_State *L, const char *f, const char *s) {
 
 static void init_state(const struct subs *s, lua_State *L) {
     new_userdata_ptr(L, s);
+    lua_pushcfunction(L, glob_lua);
+    lua_setglobal(L, "glob");
     luaL_newmetatable(L, "subs");
     lua_pushvalue(L, -1);
     lua_setfield(L, -2, "__index");
