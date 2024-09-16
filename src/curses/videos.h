@@ -11,6 +11,7 @@
 
 #include "const.h"
 #include "list.h"
+#include "menu.h"
 #include "search.h"
 
 struct input;
@@ -19,6 +20,7 @@ struct window;
 enum videos_flags {
     VIDEOS_ACTIVE        = 1u << 0,
     VIDEOS_UNTAGGED      = 1u << 1,
+    VIDEOS_ORDER_DESC    = 1u << 2,
 };
 
 struct videos {
@@ -28,8 +30,9 @@ struct videos {
     struct task_thread *task_thread;
     struct list list;
     struct search search;
+    struct menu menu;
     int n, duration_seconds, x, y, width, height, tag, type, sub;
-    u8 flags;
+    u8 flags, order;
 };
 
 void videos_destroy(struct videos *v);
