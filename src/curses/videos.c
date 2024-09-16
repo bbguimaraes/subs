@@ -1,5 +1,6 @@
 #include "videos.h"
 
+#include <ctype.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -21,6 +22,26 @@
         " subs.name, videos.title," \
         " videos.timestamp, videos.duration_seconds"
 
+enum order {
+    ORDER_TIMESTAMP, ORDER_ID, ORDER_SUB, ORDER_TITLE, ORDER_DURATION,
+};
+
+static const char *MENU_OPTIONS[] = {
+    [ORDER_TIMESTAMP] = "timestamp",
+    [ORDER_ID] = "id",
+    [ORDER_SUB] = "subscription",
+    [ORDER_TITLE] = "title",
+    [ORDER_DURATION] = "duration",
+};
+
+static const char *MENU_DESC[] = {
+    [ORDER_TIMESTAMP] = "publication date",
+    [ORDER_ID] = "database ID",
+    [ORDER_SUB] = "subscription name",
+    [ORDER_TITLE] = "video title",
+    [ORDER_DURATION] = "video duration",
+};
+
 static bool reload(void *d);
 struct reload_data {
     struct videos *v;
@@ -40,6 +61,7 @@ static void clear_selection(struct videos *v) {
 
 static void render_border(struct list *l, struct videos *v) {
     enum { BAR = 1, SPACE = 1, COLON = 1, DIGIT = 1 };
+    const u8 flags = v->flags, order = v->order;
     const int duration = v->duration_seconds;
     const int hours = duration / 60 / 60;
     const int minutes = duration / 60 % 60;
@@ -55,6 +77,14 @@ static void render_border(struct list *l, struct videos *v) {
     if(n) {
         x -= (int)int_digits(hours) + 2 * (COLON + DIGIT + SPACE) + SPACE;
         list_write_title(l, x, " %d:%02d:%02d", hours, minutes, seconds);
+    }
+    if(order) {
+        const char cs[] = {0, 'i', 's', 't', 'T', 'd'};
+        assert(order < cs[order]);
+        const char c = cs[order];
+        x -= 2 + 2 * SPACE;
+        list_write_title(
+            l, x, " O:%c ", flags & VIDEOS_ORDER_DESC ? toupper(c) : c);
     }
     if(!search_is_active(&v->search))
         return;
@@ -251,6 +281,7 @@ err0:
 }
 
 static enum subs_curses_key input_lua(lua_State *L, int c, int count);
+static void show_ordering_menu(struct videos *v);
 
 static enum subs_curses_key input(struct videos *v, int c, int count) {
     struct list *const l = &v->list;
@@ -264,6 +295,14 @@ static enum subs_curses_key input(struct videos *v, int c, int count) {
         if(!l->n)
             return true;
         if(!toggle_item_watched(v))
+            return false;
+        break;
+    case 'O':
+        show_ordering_menu(v);
+        return true;
+    case 'R':
+        v->flags ^= VIDEOS_ORDER_DESC;
+        if(!videos_reload(v))
             return false;
         break;
     case 'n':
@@ -328,6 +367,28 @@ end:
     return ret;
 }
 
+// TODO struct ordering_menu
+static enum subs_curses_key input_menu(struct videos *v, int c) {
+    struct menu *const m = &v->menu;
+    switch(c) {
+    case ERR:
+        return false;
+    default:
+        return menu_input(m, c) ? true : KEY_IGNORED;
+    case '\n': {
+        u8 const o = (u8)menu_current(m);
+        menu_destroy(m);
+        return videos_set_order(v, o);
+    }
+    case ESC:
+    case 'q':
+        menu_destroy(m);
+        list_redraw(&v->list);
+        list_refresh(&v->list);
+        return true;
+    }
+}
+
 static enum subs_curses_key input_search(struct videos *v, int c, int count) {
     struct search *const s = &v->search;
     struct list *const l = &v->list;
@@ -338,6 +399,18 @@ static enum subs_curses_key input_search(struct videos *v, int c, int count) {
         list_refresh(l);
     }
     return ret;
+}
+
+static void show_ordering_menu(struct videos *v) {
+    enum { n = ARRAY_SIZE(MENU_OPTIONS) };
+    struct menu *const m = &v->menu;
+    subs_menu_init(
+        m, v->list.sub, n,
+        v->flags & VIDEOS_ORDER_DESC ? "Order by (desc.):" : "Order by:",
+        MENU_OPTIONS, MENU_DESC);
+    menu_set_current(m, v->order);
+    menu_redraw(m);
+    menu_refresh(m);
 }
 
 static void build_query_common(
@@ -385,14 +458,40 @@ static void build_query_count(
 }
 
 static void build_query_list(
-    int tag, int type, int sub, u8 global_flags, u8 flags, struct buffer *b)
+    int tag, int type, int sub, u8 global_flags, u8 flags, u8 order,
+    struct buffer *b)
 {
     buffer_append_str(b,
         FIELDS
         " from videos"
         " join subs on videos.sub == subs.id");
     build_query_common(tag, type, sub, global_flags, flags, b);
-    buffer_str_append_str(b, " order by videos.timestamp, videos.id");
+    buffer_str_append_str(b, " order by ");
+    switch(order) {
+    case ORDER_SUB:
+        buffer_str_append_str(b, "subs.name");
+        if(flags & VIDEOS_ORDER_DESC)
+            buffer_str_append_str(b, " desc");
+        buffer_str_append_str(b, ", ");
+        goto ts;
+    case ORDER_DURATION:
+        buffer_str_append_str(b, "videos.duration_seconds");
+        if(flags & VIDEOS_ORDER_DESC)
+            buffer_str_append_str(b, " desc");
+        buffer_str_append_str(b, ", ");
+        /* fallthrough */
+ts:
+    case ORDER_TIMESTAMP:
+        buffer_str_append_str(b, "videos.timestamp");
+        if(flags & VIDEOS_ORDER_DESC)
+            buffer_str_append_str(b, " desc");
+        buffer_str_append_str(b, ", ");
+        /* fallthrough */
+    case ORDER_ID: buffer_str_append_str(b, "videos.id"); break;
+    case ORDER_TITLE: buffer_str_append_str(b, "videos.title"); break;
+    }
+    if(flags & VIDEOS_ORDER_DESC)
+        buffer_str_append_str(b, " desc");
 }
 
 static bool query_counts(
@@ -445,7 +544,7 @@ static bool reload(void *p) {
     if(n && !lines)
         goto err1;
     sql.n = 0;
-    build_query_list(tag, type, sub, global_flags, flags, &sql);
+    build_query_list(tag, type, sub, global_flags, flags, v->order, &sql);
     if(!populate(db, sql.p, sql.n - 1, param, ids, lines))
         goto err2;
     free(d->sql.p);
@@ -496,6 +595,8 @@ err:
 }
 
 void videos_destroy(struct videos *v) {
+    if(v->menu.m)
+        menu_destroy(&v->menu);
     list_destroy(&v->list);
     free(v->search.b.p);
 }
@@ -523,28 +624,46 @@ void videos_set_sub(struct videos *v, int s) {
     v->flags |= VIDEOS_ACTIVE;
 }
 
+bool videos_set_order(struct videos *v, u8 o) {
+    // TODO delay reloading
+    v->order = o;
+    return videos_reload(v);
+}
+
 bool videos_leave(void *data) {
-    list_set_active(&((struct videos*)data)->list, false);
+    struct videos *const v = data;
+    if(!v->menu.m)
+        list_set_active(&v->list, false);
     return true;
 }
 
 bool videos_enter(void *data) {
-    struct list *const l = &((struct videos*)data)->list;
-    list_set_active(l, true);
-    list_refresh(l);
+    struct videos *const v = data;
+    struct list *const l = &v->list;
+    if(!v->menu.m)
+        list_set_active(l, true);
     curs_set(0);
     return true;
 }
 
 void videos_redraw(void *data) {
-    struct list *const l = &((struct videos*)data)->list;
-    list_redraw(l);
-    list_refresh(l);
+    struct videos *const v = data;
+    struct menu *const m = &v->menu;
+    if(m->m) {
+        menu_redraw(m);
+        menu_refresh(m);
+    } else {
+        struct list *const l = &v->list;
+        list_redraw(l);
+        list_refresh(l);
+    }
 }
 
 enum subs_curses_key videos_input(void *data, int c, int count) {
     struct videos *const v = data;
-    if(search_is_input_active(&v->search))
+    if(v->menu.m)
+        return input_menu(v, c);
+    else if(search_is_input_active(&v->search))
         return input_search(v, c, count);
     else
         return input(v, c, count);
