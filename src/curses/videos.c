@@ -50,7 +50,7 @@ struct reload_data {
     // reload_finish
     i64 *ids;
     char **lines;
-    int n, duration_seconds, tag, sub, type;
+    int n, id_len, duration_seconds, tag, sub, type;
 };
 static bool reload_finish(void *d);
 
@@ -97,7 +97,7 @@ static bool item_watched(const char *s) {
     return s[1] == 'N';
 }
 
-static char *videos_row_to_str(sqlite3_stmt *stmt, i64 id) {
+static char *videos_row_to_str(sqlite3_stmt *stmt, int id_len, i64 id) {
     static const char type_str[] = {
         [SUBS_LBRY] = 'L',
         [SUBS_YOUTUBE] = 'Y',
@@ -127,14 +127,14 @@ static char *videos_row_to_str(sqlite3_stmt *stmt, i64 id) {
             sprintf(duration_str, "%4u:%02u", h, m);
     }
     return sprintf_alloc(
-        "%c%c %d %s %s %s | %s",
+        "%c%c %*d %s %s %s | %s",
         type_str[MIN(SUBS_TYPE_MAX, (unsigned)type)],
         watched_str[MIN(2, (unsigned)watched)],
-        id, timestamp_str, duration_str, sub, title);
+        id_len, id, timestamp_str, duration_str, sub, title);
 }
 
 static bool populate(
-    sqlite3 *db, const char *sql, size_t len, const int *param,
+    sqlite3 *db, const char *sql, size_t len, const int *param, int id_len,
     i64 *ids, char **lines)
 {
     bool ret = false;
@@ -153,7 +153,7 @@ static bool populate(
         }
         const int id = sqlite3_column_int(stmt, 0);
         *ids++ = id;
-        *lines++ = videos_row_to_str(stmt, id);
+        *lines++ = videos_row_to_str(stmt, id_len, id);
     }
 end:
     return (sqlite3_finalize(stmt) == SQLITE_OK) && ret;
@@ -181,7 +181,7 @@ bool reload_item(struct videos *v) {
         case SQLITE_DONE: /* fall through */
         default: goto end;
         }
-        list_set_name(l, "%s", videos_row_to_str(stmt, id));
+        list_set_name(l, "%s", videos_row_to_str(stmt, v->id_len, id));
         ret = true;
         goto end;
     }
@@ -451,7 +451,8 @@ static void build_query_count(
     int tag, int type, int sub, u8 global_flags, u8 flags, struct buffer *b)
 {
     buffer_append_str(b,
-        "select count(*), sum(videos.duration_seconds) from videos");
+        "select count(*), max(videos.id), sum(videos.duration_seconds)"
+        " from videos");
     if(type)
         buffer_str_append_str(b, " join subs on videos.sub == subs.id");
     build_query_common(tag, type, sub, global_flags, flags, b);
@@ -496,7 +497,7 @@ ts:
 
 static bool query_counts(
     sqlite3 *db, struct buffer *b, const int *param,
-    int *n, int *duration_seconds)
+    int *n, int *duration_seconds, int *id_len)
 {
     bool ret = false;
     sqlite3_stmt *stmt = NULL;
@@ -516,7 +517,8 @@ static bool query_counts(
             goto end;
         case SQLITE_ROW:
             *n = sqlite3_column_int(stmt, 0);
-            *duration_seconds = sqlite3_column_int(stmt, 1);
+            *id_len = (int)int_digits(sqlite3_column_int(stmt, 1));
+            *duration_seconds = sqlite3_column_int(stmt, 2);
             ret = true;
             goto end;
         }
@@ -534,8 +536,8 @@ static bool reload(void *p) {
     sqlite3 *const db = v->db;
     struct buffer sql = {0};
     build_query_count(tag, type, sub, global_flags, flags, &sql);
-    int n = 0, duration_seconds = 0;
-    if(!query_counts(db, &sql, param, &n, &duration_seconds))
+    int n = 0, duration_seconds = 0, id_len = 0;
+    if(!query_counts(db, &sql, param, &n, &duration_seconds, &id_len))
         goto err0;
     i64 *const ids = checked_calloc((size_t)n, sizeof(*ids));
     if(n && !ids)
@@ -545,10 +547,11 @@ static bool reload(void *p) {
         goto err1;
     sql.n = 0;
     build_query_list(tag, type, sub, global_flags, flags, v->order, &sql);
-    if(!populate(db, sql.p, sql.n - 1, param, ids, lines))
+    if(!populate(db, sql.p, sql.n - 1, param, id_len, ids, lines))
         goto err2;
     free(d->sql.p);
     d->n = n;
+    d->id_len = id_len;
     d->duration_seconds = duration_seconds;
     d->ids = ids;
     d->lines = lines;
@@ -582,6 +585,7 @@ static bool reload_finish(void *p) {
         l, NULL, d.n, d.ids, d.lines, v->x, v->y, v->width, v->height
     ))
         goto err;
+    v->id_len = d.id_len;
     v->duration_seconds = d.duration_seconds;
     render_border(l, v);
     v->n = d.n;

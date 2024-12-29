@@ -30,7 +30,7 @@ struct videos {
     struct list list;
     struct search search;
     struct menu menu;
-    int n, duration_seconds, x, y, width, height, tag, type, sub;
+    int n, id_len, duration_seconds, x, y, width, height, tag, type, sub;
     u8 flags, order;
 };
 
