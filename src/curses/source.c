@@ -45,6 +45,7 @@ static bool select(struct source_bar *b) {
     const int i = b->list.i;
     if(i == TAGS || i == types)
         return true;
+    list_set_current(&b->list, i);
     struct subs_bar *const s = b->subs_bar;
     struct videos *const v = b->videos;
     if(i == UNTAGGED) {

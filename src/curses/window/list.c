@@ -84,6 +84,9 @@ static void redraw(const struct list *l) {
         window_clear_line(w);
     }
     set_line_attr(w, l->i - offset, l->selected_attr);
+    const int cur = l->cur;
+    if(offset <= cur && cur < l->offset + height)
+        set_line_attr(w, cur - offset, A_BOLD);
     window_refresh(w);
 }
 
@@ -105,6 +108,17 @@ static void select_id(struct list *l, i64 id) {
             move_idx(l, i);
             break;
         }
+}
+
+static void restore_cur(struct list *l, i64 id) {
+    const int n = l->n;
+    const i64 *const v = l->ids;
+    for(int i = 0; i != n; ++i) {
+        if(v[i] != id)
+            continue;
+        list_set_current(l, i);
+        return;
+    }
 }
 
 static void offset(struct list *l, int d) {
@@ -132,6 +146,7 @@ bool list_init(
     if(height < 2)
         return LOG_ERR("insufficient height (%d)\n", height), false;
     const i64 prev_id = l->n ? l->ids[l->i] : -1;
+    const i64 prev_cur = (l->n && l->cur != -1) ? l->ids[l->cur] : -1;
     free(l->ids);
     free(l->lines);
     l->ids = ids;
@@ -141,10 +156,13 @@ bool list_init(
         l->selected_attr = NOT_SELECTED_ATTR;
     resize(l, window_new, x, y, width, height);
     l->i = n ? limit_idx(l, l->i) : 0;
+    l->cur = -1;
     limit_offset_after_resize(l);
     if(n) {
         l->i = n ? limit_idx(l, l->i) : 0;
         select_id(l, prev_id);
+        if(prev_cur != -1)
+            restore_cur(l, prev_cur);
         redraw(l);
     }
     window_box(l->w, 0, 0);
@@ -253,4 +271,9 @@ void list_write_title(struct list *l, int x, const char *restrict fmt, ...) {
     va_start(args, fmt);
     window_vprint(w, 0, x, fmt, args);
     va_end(args);
+}
+
+void list_set_current(struct list *l, int i) {
+    l->cur = i;
+    redraw(l);
 }

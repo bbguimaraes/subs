@@ -398,6 +398,7 @@ static enum subs_curses_key input_search(struct subs_bar *b, int c, int count) {
 
 static bool select_item(struct subs_bar *b, int i) {
     struct videos *const v = b->videos;
+    list_set_current(&b->list, i);
     videos_set_sub(v, (int)b->list.ids[i]);
     return videos_reload(v)
         && change_window(b->s, VIDEOS_IDX);
@@ -463,16 +464,19 @@ void subs_bar_toggle_not_watched(struct subs_bar *b) {
 }
 
 void subs_bar_set_untagged(struct subs_bar *b) {
+    list_set_current(&b->list, -1);
     clear_selection(b);
     b->flags |= UNTAGGED;
 }
 
 void subs_bar_set_tag(struct subs_bar *b, int t) {
+    list_set_current(&b->list, -1);
     clear_selection(b);
     b->tag = t;
 }
 
 void subs_bar_set_type(struct subs_bar *b, int t) {
+    list_set_current(&b->list, -1);
     clear_selection(b);
     b->type = t;
 }

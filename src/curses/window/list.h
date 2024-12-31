@@ -39,6 +39,8 @@ struct list {
     int n;
     /** Current selected item in \ref lines. */
     int i;
+    /** Item in \ref lines, always highlighted. */
+    int cur;
     /** Beginning of the region of \ref lines currently displayed. */
     int offset;
     /** X position of window \ref w on the screen. */
@@ -68,5 +70,6 @@ enum subs_curses_key list_input(struct list *l, int c, int count);
 void list_set_active(struct list *l, bool a);
 void list_set_name(struct list *l, const char *restrict fmt, ...);
 void list_write_title(struct list *l, int x, const char *restrict fmt, ...);
+void list_set_current(struct list *l, int i);
 
 #endif
