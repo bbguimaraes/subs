@@ -33,12 +33,12 @@ static cJSON *post(
     struct buffer *data, struct buffer *b);
 static bool get_result_info(const cJSON *j, size_t *n_pages);
 static int process_page(
-    const struct subs *s, u32 flags, int id, size_t page,
+    const struct subs *s, u32 flags, int depth, int id, size_t page,
     const cJSON *root, struct buffer *items);
 
 bool update_lbry(
     const struct subs *s, const struct http_client *http, struct buffer *b,
-    u32 flags, int id, const char *ext_id)
+    u32 flags, int depth, int id, const char *ext_id)
 {
     bool ret = false;
     struct buffer post_data = {0};
@@ -52,7 +52,7 @@ bool update_lbry(
         goto done;
     for(size_t page = 1;;) {
         b->n = 0;
-        switch(process_page(s, flags, id, page, root, b)) {
+        switch(process_page(s, flags, depth, id, page, root, b)) {
         case DONE: goto done;
         case ERR: goto err1;
         }
@@ -108,9 +108,10 @@ static bool list_to_items(
 static int process(const struct subs *s, int id, const struct buffer *b);
 
 static int process_page(
-    const struct subs *s, u32 flags, int id, size_t page,
+    const struct subs *s, u32 flags, int depth, int id, size_t page,
     const cJSON *j, struct buffer *b)
 {
+    (void)flags;
     const bool verbose = s->log_level;
     const cJSON *const result = get_item(j, "result");
     if(!result)
@@ -133,19 +134,23 @@ static int process_page(
     case -1:
         return ERR;
     case 0:
-        if(flags & SUBS_UPDATE_DEEP)
-            return 0;
+        if(depth != -1)
+            break;
         if(verbose)
             fputs(
                 "page has no new videos"
                 " (use a deep update to unconditionally fetch all pages)\n",
                 stderr);
         return DONE;
-    default:
-        if(verbose)
-            fprintf(stderr, "added %d new video(s)\n", n_updated);
-        return 0;
     }
+    if(verbose)
+        fprintf(stderr, "added %d new video(s)\n", n_updated);
+    if(page == (size_t)(depth - 1)) {
+        if(verbose)
+            fputs("maximum depth reached\n", stderr);
+        return DONE;
+    }
+    return 0;
 }
 
 static i64 lbry_timestamp(

@@ -108,11 +108,12 @@ bool update_youtube_destroy(struct update_youtube *p) {
 
 static enum result process(
     sqlite3 *db, const struct update_youtube *u, const struct buffer *input,
-    u32 flags, bool verbose, struct buffer *b, int id, int *n);
+    u32 flags, int depth, bool verbose, struct buffer *b, size_t page, int id,
+    int *n);
 
 bool update_youtube(
     const struct subs *s, struct update_youtube *u, struct buffer *b, u32 flags,
-    int id, const char *ext_id)
+    int depth, int id, const char *ext_id)
 {
     sqlite3 *const db = s->db;
     const bool verbose = s->log_level;
@@ -136,7 +137,9 @@ bool update_youtube(
         }
         b->n = (size_t)nr;
         int n_updated = 0;
-        switch(process(db, u, b, flags, verbose, &tmp, id, &n_updated)) {
+        switch(process(
+            db, u, b, flags, depth, verbose, &tmp, page, id, &n_updated
+        )) {
         case DONE: ret = true; goto end;
         case ERR: goto end;
         }
@@ -155,8 +158,10 @@ static bool process_line(
 
 static enum result process(
     sqlite3 *db, const struct update_youtube *u, const struct buffer *input,
-    u32 flags, bool verbose, struct buffer *b, int id, int *n_p)
+    u32 flags, int depth, bool verbose, struct buffer *b, size_t page, int id,
+    int *n_p)
 {
+    (void)flags;
     const char *p = input->p;
     size_t n = input->n;
     if(strncmp("\n", p, n) == 0)
@@ -181,14 +186,17 @@ static enum result process(
         n -= (size_t)(new_line - ext_id + 1);
         p = new_line + 1;
     }
-    if(done) {
-        if(flags & SUBS_UPDATE_DEEP)
-            return 0;
+    if(done && depth == -1) {
         if(verbose)
             fputs(
                 "page has no new videos"
                 " (use a deep update to unconditionally fetch all pages)\n",
                 stderr);
+        return DONE;
+    }
+    if(page == (size_t)(depth - 1)) {
+        if(verbose)
+            fputs("maximum depth reached\n", stderr);
         return DONE;
     }
     return 0;

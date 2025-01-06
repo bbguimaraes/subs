@@ -651,18 +651,18 @@ static bool cmd_watched(struct subs *s, char **argv) {
 }
 
 static bool cmd_update(struct subs *s, int argc, char **argv) {
-    enum { DEEP = 1, DELAY = 2, SINCE = 3 };
+    enum { DEPTH = 1, DELAY = 2, SINCE = 3 };
     const char short_opts[] = "h";
     const struct option long_opts[] = {
         {"help", no_argument, 0, 'h'},
-        {"deep", no_argument, 0, DEEP},
+        {"depth", required_argument, 0, DEPTH},
         {"delay", required_argument, 0, DELAY},
         {"since", required_argument, 0, SINCE},
         {0},
     };
     bool ret = false;
     u32 flags = 0;
-    int delay = 0, since = 0;
+    int depth = -1, delay = 0, since = 0;
     for(;;) {
         int long_idx = 0;
         const int c = getopt_long(argc, argv, short_opts, long_opts, &long_idx);
@@ -670,7 +670,10 @@ static bool cmd_update(struct subs *s, int argc, char **argv) {
             break;
         switch(c) {
         case '?': goto end;
-        case DEEP: flags |= SUBS_UPDATE_DEEP; break;
+        case DEPTH:
+            if((depth = parse_int(optarg)) == -1)
+                return false;
+            break;
         case DELAY:
             if((delay = parse_int(optarg)) == -1)
                 return false;
@@ -685,8 +688,9 @@ static bool cmd_update(struct subs *s, int argc, char **argv) {
 "\n"
 "Options:\n"
 "    -h, --help      This help text.\n"
-"    --deep          Fetch all pages when updating.  By default, updates stop\n"
-"                    on the first page that does not contain new entries.\n"
+"    --depth N       Fetch up to N pages when updating.  By default, updates\n"
+"                    stop on the first page that does not contain new\n"
+"                    entries.  Use \"0\" to fetch all pages.\n"
 "    --delay N       Stop for N seconds between each update.\n"
 "    --since TIMESTAMP\n"
 "                    Only update subscriptions which have not been updated.\n"
@@ -705,7 +709,7 @@ static bool cmd_update(struct subs *s, int argc, char **argv) {
             goto end;
     struct http_client http = {0};
     http_client_init(&http, 0);
-    if(!subs_update(s, &http, flags, delay, since, pos_argc, pos_argv))
+    if(!subs_update(s, &http, flags, depth, delay, since, pos_argc, pos_argv))
         goto end;
     ret = true;
 end:

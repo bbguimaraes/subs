@@ -116,7 +116,7 @@ static bool report(sqlite3 *db, size_t initial_count) {
 
 bool subs_update(
     const struct subs *s, const struct http_client *http, uint32_t flags,
-    int delay, int since, size_t n, i64 *ids)
+    int depth, int delay, int since, size_t n, i64 *ids)
 {
     const bool verbose = s->log_level;
     sqlite3 *const db = s->db;
@@ -180,11 +180,11 @@ after_delay:
                 i, subs_count, id, sqlite3_column_text(stmt, 3));
         switch(type) {
         case SUBS_LBRY:
-            if(!update_lbry(s, http, &b, flags, id, ext_id))
+            if(!update_lbry(s, http, &b, flags, depth, id, ext_id))
                 goto e2;
             break;
         case SUBS_YOUTUBE:
-            if(!update_youtube(s, &youtube, &b, flags, id, ext_id))
+            if(!update_youtube(s, &youtube, &b, flags, depth, id, ext_id))
                 goto e2;
             break;
         default:

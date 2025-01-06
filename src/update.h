@@ -20,11 +20,11 @@ struct update_youtube {
 
 bool update_lbry(
     const struct subs *s, const struct http_client *http, struct buffer *b,
-    u32 flags, int id, const char *ext_id);
+    u32 flags, int depth, int id, const char *ext_id);
 bool update_youtube_init(struct update_youtube *u);
 bool update_youtube_destroy(struct update_youtube *u);
 bool update_youtube(
     const struct subs *s, struct update_youtube *u, struct buffer *b, u32 flags,
-    int id, const char *ext_id);
+    int depth, int id, const char *ext_id);
 
 #endif

@@ -83,7 +83,7 @@ static bool update(void) {
         && subs_add(&s, SUBS_LBRY, "name0", "id0")
         && subs_add(&s, SUBS_LBRY, "name1", "id1")
         /*TODO&& subs_add(&s, SUBS_YOUTUBE, "name2", "id0")*/
-        && subs_update(&s, &http, 0, 0, 0, 0, NULL)
+        && subs_update(&s, &http, 0, -1, 0, 0, 0, NULL)
     ))
         goto end;
     FILE *const tmp = tmpfile();
@@ -185,7 +185,7 @@ static bool update_pages(void) {
     if(!(
         subs_init(&s)
         && subs_add(&s, SUBS_LBRY, "name0", "id0")
-        && subs_update(&s, &http, 0, 0, 0, 0, NULL)
+        && subs_update(&s, &http, 0, -1, 0, 0, 0, NULL)
     ))
         goto end;
     FILE *const tmp = tmpfile();
@@ -288,7 +288,7 @@ static bool update_short(void) {
     if(!(
         subs_init(&s)
         && subs_add(&s, SUBS_LBRY, "name0", "id0")
-        && subs_update(&s, &http, 0, 0, 0, 0, NULL)
+        && subs_update(&s, &http, 0, -1, 0, 0, 0, NULL)
     ))
         goto end;
     server.n = 1;
@@ -371,7 +371,7 @@ static bool update_ids(void) {
         subs_init(&s)
         && subs_add(&s, SUBS_LBRY, "name0", "id0")
         && subs_add(&s, SUBS_LBRY, "name1", "id1")
-        && subs_update(&s, &http, 0, 0, 0, 1, (i64[]){2})
+        && subs_update(&s, &http, 0, -1, 0, 0, 1, (i64[]){2})
     ))
         goto end;
     FILE *const tmp = tmpfile();

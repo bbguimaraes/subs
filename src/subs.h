@@ -20,10 +20,6 @@ enum subs_type {
     SUBS_TYPE_MAX,
 };
 
-enum subs_flags {
-    SUBS_UPDATE_DEEP = (uint32_t)1 << 0,
-};
-
 struct subs {
     sqlite3 *db;
     lua_State *L;
@@ -56,7 +52,7 @@ bool subs_tag_video(const struct subs *s, int64_t tag, int64_t id);
 bool subs_set_watched(const struct subs *s, int64_t id, bool b);
 bool subs_update(
     const struct subs *s, const struct http_client *http, uint32_t flags,
-    int since, int delay, size_t n, int64_t *ids);
+    int depth, int since, int delay, size_t n, int64_t *ids);
 bool subs_start_tui(const struct subs *s);
 lua_State *subs_lua_init(struct subs *s);
 bool subs_lua(const struct subs *s, const char *src);
