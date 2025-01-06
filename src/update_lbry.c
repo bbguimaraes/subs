@@ -175,13 +175,21 @@ static i64 lbry_timestamp(
     return -1;
 }
 
-static i64 lbry_duration_seconds(const char *id, const cJSON *value) {
+static i64 lbry_duration_seconds(
+    const struct subs *s, const char *id, const cJSON *value)
+{
     const cJSON *const video = get_item(value, "video");
-    if(!video)
-        return LOG_ERR("%s: missing video field\n", id), -1;
+    if(!video) {
+        if(s->log_level)
+            LOG_ERR("%s: stream has no video\n", id);
+        return 0;
+    }
     const cJSON *const duration = get_item(video, "duration");
-    if(!duration)
-        return LOG_ERR("%s: missing video.duration field\n", id), -1;
+    if(!duration) {
+        if(s->log_level)
+            LOG_ERR("%s: video has no duration\n", id);
+        return 0;
+    }
     if(!cJSON_IsNumber(duration))
         return LOG_ERR("%s: invalid duration\n", id), -1;
     return duration->valueint;
@@ -213,7 +221,7 @@ static bool list_to_items(
         const i64 timestamp = lbry_timestamp(id, item, value);
         if(timestamp == -1)
             return false;
-        const i64 duration_seconds = lbry_duration_seconds(id, value);
+        const i64 duration_seconds = lbry_duration_seconds(s, id, value);
         if(duration_seconds == -1)
             return false;
         BUFFER_APPEND(b, (&(struct update_item){
