@@ -15,8 +15,7 @@ TESTS := \
 	tests/util
 BIN := subs $(TESTS)
 
-all: $(BIN)
-subs: \
+SUBS_OBJ := \
 	src/buffer.o \
 	src/curses/curses.o \
 	src/curses/form.o \
@@ -35,7 +34,6 @@ subs: \
 	src/http.o \
 	src/log.o \
 	src/lua.o \
-	src/main.o \
 	src/subs.o \
 	src/task.o \
 	src/update.o \
@@ -43,6 +41,9 @@ subs: \
 	src/update_youtube.o \
 	src/util.o \
 	src/unix.o
+
+all: $(BIN)
+subs: $(SUBS_OBJ) src/main.o
 	$(LINK.C) -o $@ $^ $(LDLIBS)
 $(TESTS): CPPFLAGS := \
 	$(CPPFLAGS) \
@@ -57,35 +58,7 @@ tests/curses: \
 	src/util.o \
 	src/curses/window/list.o \
 	src/curses/window/window.o
-tests/subs: \
-	src/buffer.o \
-	src/curses/curses.o \
-	src/curses/form.o \
-	src/curses/input.o \
-	src/curses/lua/lua.o \
-	src/curses/menu.o \
-	src/curses/message.o \
-	src/curses/search.o \
-	src/curses/source.o \
-	src/curses/subs.o \
-	src/curses/videos.o \
-	src/curses/window/list.o \
-	src/curses/window/list_search.o \
-	src/curses/window/window.o \
-	src/db.o \
-	src/http.o \
-	src/http_fake.o \
-	src/log.o \
-	src/lua.o \
-	src/os.o \
-	src/subs.o \
-	src/task.o \
-	src/update.o \
-	src/update_lbry.o \
-	src/update_youtube.o \
-	src/util.o \
-	src/unix.o \
-	tests/common.o
+tests/subs: $(SUBS_OBJ) src/http_fake.o tests/common.o
 tests/util: \
 	src/log.o \
 	tests/common.o
