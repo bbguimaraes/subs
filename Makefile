@@ -12,6 +12,7 @@ TESTS := \
 	tests/buffer \
 	tests/curses \
 	tests/subs \
+	tests/update \
 	tests/util
 BIN := subs $(TESTS)
 
@@ -59,6 +60,7 @@ tests/curses: \
 	src/curses/window/list.o \
 	src/curses/window/window.o
 tests/subs: $(SUBS_OBJ) src/http_fake.o tests/common.o
+tests/update: $(SUBS_OBJ) src/http_fake.o tests/common.o
 tests/util: \
 	src/log.o \
 	tests/common.o
