@@ -40,7 +40,7 @@ static bool update(void) {
                 }],
                 "page": 1,
                 "page_size": 20,
-                "total_items": 3,
+                "total_items": 2,
                 "total_pages": 1
             }
         }),
